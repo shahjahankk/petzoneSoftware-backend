@@ -1,0 +1,441 @@
+WEAR EXCEL — DEEP AUDIT (37 diff items): PO + Sales + Returns + Issues
+====================================================================================================
+
+Row 39 | whiskas fish 1+ in jelly
+  DB: Whiskas Pouch 1+ Fish Favourites In Jelly 85g (WH387) id=1916
+  Excel 624 | DB 0 | Diff 624 | Root: Physical count higher than system
+  Ledger: opening +816, PO +1236, sold -1236, returns +0, restock +0, adj -816/+0 => 0
+  sale_items: 1236 (9 inv) | return_items: 0 (0 ret)
+  PO lines: 4 | ordered 2724 | received 1236 | ledger PURCHASE 1236
+    PO-WH-202602-0005 [COMPLETED] ord 180 rcv 180
+    PO-WH-202604-0032 [COMPLETED] ord 1056 rcv 1056
+    PO-WH-202605-0008 [PENDING] ord 528 rcv 0 **PARTIAL**
+    PO-WH-202605-0008 [PENDING] ord 960 rcv 0 **PARTIAL**
+  Issues:
+    - PO PO-WH-202605-0008: ordered 528, received 0 (pending 528)
+    - PO PO-WH-202605-0008: ordered 960, received 0 (pending 960)
+
+Row 29 | pawfect Adult 1 kg
+  DB: Pawfect Adult 1 kg (WH046) id=1575
+  Excel 990 | DB 419 | Diff 571 | Root: Physical count higher than system
+  Ledger: opening +1580, PO +4610, sold -4582, returns +10, restock +381, adj -1580/+0 => 419
+  sale_items: 4201 (77 inv) | return_items: 10 (1 ret)
+  PO lines: 6 | ordered 5820 | received 4610 | ledger PURCHASE 4610
+    PO-WH-202602-0006 [COMPLETED] ord 1660 rcv 1660
+    PO-WH-202603-0004 [COMPLETED] ord 600 rcv 600
+    PO-WH-202604-0002 [COMPLETED] ord 200 rcv 200
+    PO-WH-202604-0004 [COMPLETED] ord 2100 rcv 2100
+    PO-WH-202604-0023 [COMPLETED] ord 50 rcv 50
+    PO-WH-202606-0003 [PENDING] ord 1210 rcv 0 **PARTIAL**
+  Issues:
+    - SALE_TRACKING: sale_items=4201 vs ledger SALE=4582 (warehouse sales often ledger-only)
+    - PO PO-WH-202606-0003: ordered 1210, received 0 (pending 1210)
+    - SALE_EDITS: 13 restock events (+381) from sale edits/deletes
+
+Row 37 | whiskas poultry 1+ in jelly
+  DB: Whiskas Pouch 1+ Poultry Feasts In Jelly 85g (WH391) id=1920
+  Excel 1056 | DB 500 | Diff 556 | Root: Physical count higher than system
+  Ledger: opening +1848, PO +4080, sold -3676, returns +0, restock +96, adj -1848/+0 => 500
+  sale_items: 3580 (23 inv) | return_items: 0 (0 ret)
+  PO lines: 2 | ordered 4080 | received 4080 | ledger PURCHASE 4080
+    PO-WH-202602-0005 [COMPLETED] ord 2160 rcv 2160
+    PO-WH-202604-0032 [COMPLETED] ord 1920 rcv 1920
+  Issues:
+    - SALE_TRACKING: sale_items=3580 vs ledger SALE=3676 (warehouse sales often ledger-only)
+    - SALE_EDITS: 1 restock events (+96) from sale edits/deletes
+
+Row 36 | whiskas poultry 1+ in gravy
+  DB: Whiskas Pouch 1+ Poultry Feasts In Gravy 85g (WH390) id=1919
+  Excel 1200 | DB 752 | Diff 448 | Root: Physical count higher than system
+  Ledger: opening +1572, PO +1992, sold -1240, returns +0, restock +0, adj -1572/+0 => 752
+  sale_items: 1240 (7 inv) | return_items: 0 (0 ret)
+  PO lines: 3 | ordered 2712 | received 1992 | ledger PURCHASE 1992
+    PO-WH-202602-0005 [COMPLETED] ord 456 rcv 456
+    PO-WH-202604-0032 [COMPLETED] ord 1536 rcv 1536
+    PO-WH-202605-0008 [PENDING] ord 720 rcv 0 **PARTIAL**
+  Issues:
+    - PO PO-WH-202605-0008: ordered 720, received 0 (pending 720)
+
+Row 40 | whiskas mixed menu 1+ in jelly
+  DB: Whiskas Pouch 1+ Mixed Menu In Jelly 85g (WH389) id=1918
+  Excel 1344 | DB 1728 | Diff -384 | Root: Count variance / sales vs Excel date
+  Ledger: opening +1824, PO +2652, sold -924, returns +0, restock +0, adj -1824/+0 => 1728
+  sale_items: 924 (10 inv) | return_items: 0 (0 ret)
+  PO lines: 2 | ordered 2652 | received 2652 | ledger PURCHASE 2652
+    PO-WH-202602-0005 [COMPLETED] ord 780 rcv 780
+    PO-WH-202604-0032 [COMPLETED] ord 1872 rcv 1872
+  Issues:
+
+Row 30 | pawfect Adult 500 g
+  DB: Pawfect adult500g (WH048) id=1577
+  Excel 351 | DB -7 | Diff 358 | Root: Oversold vs PO receipts
+  Ledger: opening +103, PO +681, sold -728, returns +0, restock +40, adj -103/+0 => -7
+  sale_items: 688 (27 inv) | return_items: 0 (0 ret)
+  PO lines: 4 | ordered 981 | received 681 | ledger PURCHASE 681
+    PO-WH-202602-0006 [COMPLETED] ord 81 rcv 81
+    PO-WH-202603-0004 [COMPLETED] ord 200 rcv 200
+    PO-WH-202604-0004 [COMPLETED] ord 400 rcv 400
+    PO-WH-202606-0003 [PENDING] ord 300 rcv 0 **PARTIAL**
+  Issues:
+    - SALE_TRACKING: sale_items=688 vs ledger SALE=728 (warehouse sales often ledger-only)
+    - PO PO-WH-202606-0003: ordered 300, received 0 (pending 300)
+    - OVERSOLD: sold 728 vs PO+opening inflow 784 (negative stock allowed)
+    - SALE_EDITS: 2 restock events (+40) from sale edits/deletes
+
+Row 41 | whiskas mixed menu 2-12 in jelly
+  DB: Whiskas Pouch Kitten 2-12 Mixed Menu In Jelly 85g (WH394) id=1923
+  Excel 1584 | DB 1920 | Diff -336 | Root: Count variance / sales vs Excel date
+  Ledger: opening +2016, PO +2760, sold -840, returns +0, restock +0, adj -2016/+0 => 1920
+  sale_items: 840 (8 inv) | return_items: 0 (0 ret)
+  PO lines: 2 | ordered 2760 | received 2760 | ledger PURCHASE 2760
+    PO-WH-202602-0005 [COMPLETED] ord 360 rcv 360
+    PO-WH-202604-0034 [COMPLETED] ord 2400 rcv 2400
+  Issues:
+
+Row 28 | pawfect Kitten 500 g
+  DB: Pawfect kittan 500g (WH047) id=1576
+  Excel 313 | DB 21 | Diff 292 | Root: Physical count higher than system
+  Ledger: opening +131, PO +610, sold -669, returns +0, restock +80, adj -131/+0 => 21
+  sale_items: 589 (19 inv) | return_items: 0 (0 ret)
+  PO lines: 4 | ordered 890 | received 610 | ledger PURCHASE 610
+    PO-WH-202602-0006 [COMPLETED] ord 10 rcv 10
+    PO-WH-202603-0004 [COMPLETED] ord 200 rcv 200
+    PO-WH-202604-0004 [COMPLETED] ord 400 rcv 400
+    PO-WH-202606-0003 [PENDING] ord 280 rcv 0 **PARTIAL**
+  Issues:
+    - SALE_TRACKING: sale_items=589 vs ledger SALE=669 (warehouse sales often ledger-only)
+    - PO PO-WH-202606-0003: ordered 280, received 0 (pending 280)
+    - SALE_EDITS: 4 restock events (+80) from sale edits/deletes
+
+Row 43 | whiskas chef choice 1+ in gravy
+  DB: Whiskas Pouch Tasty Mix Chefs Choice In Gravy 85g (WH396) id=1925
+  Excel 336 | DB 48 | Diff 288 | Root: Physical count higher than system
+  Ledger: opening +432, PO +1680, sold -1656, returns +0, restock +24, adj -432/+0 => 48
+  sale_items: 1632 (14 inv) | return_items: 0 (0 ret)
+  PO lines: 2 | ordered 2064 | received 1680 | ledger PURCHASE 1680
+    PO-WH-202602-0005 [COMPLETED] ord 1680 rcv 1680
+    PO-WH-202605-0008 [PENDING] ord 384 rcv 0 **PARTIAL**
+  Issues:
+    - SALE_TRACKING: sale_items=1632 vs ledger SALE=1656 (warehouse sales often ledger-only)
+    - PO PO-WH-202605-0008: ordered 384, received 0 (pending 384)
+    - SALE_EDITS: 2 restock events (+24) from sale edits/deletes
+
+Row 45 | whiskas ocean delight 1+ in jelly
+  DB: Whiskas Ocean delight 1+ in jelly (WH-UNIT6WAREH-WOD1-0001) id=2782
+  Excel 48 | DB -240 | Diff 288 | Root: Fully sold in system; Excel has stock
+  Ledger: opening +0, PO +0, sold -240, returns +0, restock +0, adj -0/+0 => -240
+  sale_items: 240 (2 inv) | return_items: 0 (0 ret)
+  PO lines: 1 | ordered 336 | received 0 | ledger PURCHASE 0
+    PO-WH-202605-0008 [PENDING] ord 336 rcv 0 **PARTIAL**
+  Issues:
+    - PO PO-WH-202605-0008: ordered 336, received 0 (pending 336)
+    - OVERSOLD: sold 240 vs PO+opening inflow 0 (negative stock allowed)
+    - SOLD_OUT_IN_SYSTEM: all receipts sold; Excel still shows 48 — missing PO or unposted stock
+    - HIGH_SALES_AFTER_OPENING_WIPE: heavy sales + opening cleared May-25
+    - LEGACY_SKU: ocean delight on duplicate WH-UNIT6 row, 0 PO, 240 sold
+    - NO_PO_RECEIPTS: stock movement without PO receive (opening only or manual)
+
+Row 35 | whiskas poultry 2-12 in jelly
+  DB: whiskas pouch 2-12 poultry in jelly 85g (WHISKASPOUCH212POULTRYINJELLY85G-064161) id=2395
+  Excel 1728 | DB 1584 | Diff 144 | Root: Physical count higher than system
+  Ledger: opening +1824, PO +2400, sold -864, returns +0, restock +48, adj -1824/+0 => 1584
+  sale_items: 816 (8 inv) | return_items: 0 (0 ret)
+  PO lines: 2 | ordered 2544 | received 2400 | ledger PURCHASE 2400
+    PO-WH-202604-0034 [COMPLETED] ord 2400 rcv 2400
+    PO-WH-202605-0008 [PENDING] ord 144 rcv 0 **PARTIAL**
+  Issues:
+    - SALE_TRACKING: sale_items=816 vs ledger SALE=864 (warehouse sales often ledger-only)
+    - PO PO-WH-202605-0008: ordered 144, received 0 (pending 144)
+    - SALE_EDITS: 1 restock events (+48) from sale edits/deletes
+
+Row 1 | felicia urinary 2 kg
+  DB: Felicia Adult Uniary Care Streilised Chicken 2kg (WH090) id=1619
+  Excel 76 | DB -42 | Diff 118 | Root: Fully sold in system; Excel has stock
+  Ledger: opening +0, PO +28, sold -84, returns +0, restock +8, adj -0/+6 => -42
+  sale_items: 76 (13 inv) | return_items: 0 (0 ret)
+  PO lines: 1 | ordered 28 | received 28 | ledger PURCHASE 28
+    PO-WH-202602-0013 [COMPLETED] ord 28 rcv 28
+  Issues:
+    - SALE_TRACKING: sale_items=76 vs ledger SALE=84 (warehouse sales often ledger-only)
+    - OVERSOLD: sold 84 vs PO+opening inflow 28 (negative stock allowed)
+    - SOLD_OUT_IN_SYSTEM: all receipts sold; Excel still shows 76 — missing PO or unposted stock
+    - HIGH_SALES_AFTER_OPENING_WIPE: heavy sales + opening cleared May-25
+
+Row 18 | jungle pouch Kitten
+  DB: Jungle Pouch Kitten Chicken100 G (WH107) id=1636
+  Excel 24 | DB 120 | Diff -96 | Root: Count variance / sales vs Excel date
+  Ledger: opening +160, PO +432, sold -320, returns +0, restock +8, adj -160/+0 => 120
+  sale_items: 312 (8 inv) | return_items: 0 (0 ret)
+  PO lines: 1 | ordered 432 | received 432 | ledger PURCHASE 432
+    PO-WH-202602-0002 [COMPLETED] ord 432 rcv 432
+  Issues:
+    - SALE_TRACKING: sale_items=312 vs ledger SALE=320 (warehouse sales often ledger-only)
+
+Row 22 | jungle creamy treat chicken
+  DB: Jungle Creamy Treat Chichen (WH109) id=1638
+  Excel 0 | DB 96 | Diff -96 | Root: Excel zero but system has stock
+  Ledger: opening +492, PO +1152, sold -1056, returns +0, restock +0, adj -492/+0 => 96
+  sale_items: 1056 (24 inv) | return_items: 0 (0 ret)
+  PO lines: 1 | ordered 1152 | received 1152 | ledger PURCHASE 1152
+    PO-WH-202602-0002 [COMPLETED] ord 1152 rcv 1152
+  Issues:
+
+Row 27 | pawfect Kitten 1 kg
+  DB: Pawfect Kitten 1 kg (WH045) id=1574
+  Excel 550 | DB 640 | Diff -90 | Root: Count variance / sales vs Excel date
+  Ledger: opening +1260, PO +2840, sold -2310, returns +0, restock +110, adj -1260/+0 => 640
+  sale_items: 2200 (52 inv) | return_items: 0 (0 ret)
+  PO lines: 6 | ordered 3240 | received 2840 | ledger PURCHASE 2840
+    PO-WH-202602-0006 [COMPLETED] ord 940 rcv 940
+    PO-WH-202603-0004 [COMPLETED] ord 400 rcv 400
+    PO-WH-202604-0002 [COMPLETED] ord 400 rcv 400
+    PO-WH-202604-0004 [COMPLETED] ord 1050 rcv 1050
+    PO-WH-202604-0023 [COMPLETED] ord 50 rcv 50
+    PO-WH-202606-0003 [PENDING] ord 400 rcv 0 **PARTIAL**
+  Issues:
+    - SALE_TRACKING: sale_items=2200 vs ledger SALE=2310 (warehouse sales often ledger-only)
+    - PO PO-WH-202606-0003: ordered 400, received 0 (pending 400)
+    - SALE_EDITS: 9 restock events (+110) from sale edits/deletes
+
+Row 15 | jungle kitten 1.5 kg
+  DB: Jungle kitten Dry Chicken 1.5kg (WH099) id=1628
+  Excel 0 | DB 88 | Diff -88 | Root: Excel zero but system has stock
+  Ledger: opening +160, PO +408, sold -320, returns +0, restock +0, adj -160/+0 => 88
+  sale_items: 320 (23 inv) | return_items: 0 (0 ret)
+  PO lines: 3 | ordered 408 | received 408 | ledger PURCHASE 408
+    PO-WH-202602-0002 [COMPLETED] ord 128 rcv 128
+    PO-WH-202602-0013 [COMPLETED] ord 160 rcv 160
+    PO-WH-202604-0035 [COMPLETED] ord 120 rcv 120
+  Issues:
+
+Row 17 | jungle Adult 1.5 kg
+  DB: Jungle Adult Dry Chicken Fish 1.5kg (WH104) id=1633
+  Excel 0 | DB 82 | Diff -82 | Root: Excel zero but system has stock
+  Ledger: opening +170, PO +420, sold -354, returns +0, restock +16, adj -170/+0 => 82
+  sale_items: 338 (23 inv) | return_items: 0 (0 ret)
+  PO lines: 3 | ordered 420 | received 420 | ledger PURCHASE 420
+    PO-WH-202602-0002 [COMPLETED] ord 128 rcv 128
+    PO-WH-202602-0013 [COMPLETED] ord 160 rcv 160
+    PO-WH-202604-0035 [COMPLETED] ord 132 rcv 132
+  Issues:
+    - SALE_TRACKING: sale_items=338 vs ledger SALE=354 (warehouse sales often ledger-only)
+    - SALE_EDITS: 2 restock events (+16) from sale edits/deletes
+
+Row 19 | jungle pouch Adult
+  DB: Jungle Pouch Adult Chicken 100 G (WH108) id=1637
+  Excel 168 | DB 234 | Diff -66 | Root: Count variance / sales vs Excel date
+  Ledger: opening +234, PO +456, sold -222, returns +0, restock +0, adj -234/+0 => 234
+  sale_items: 222 (7 inv) | return_items: 0 (0 ret)
+  PO lines: 1 | ordered 456 | received 456 | ledger PURCHASE 456
+    PO-WH-202602-0002 [COMPLETED] ord 456 rcv 456
+  Issues:
+
+Row 23 | jungle creamy treat Salmon
+  DB: Jungle Creamy Treat Salmon (WH111) id=1640
+  Excel 0 | DB -50 | Diff 50 | Root: Oversold vs PO receipts
+  Ledger: opening +250, PO +576, sold -626, returns +0, restock +0, adj -250/+0 => -50
+  sale_items: 626 (18 inv) | return_items: 0 (0 ret)
+  PO lines: 1 | ordered 576 | received 576 | ledger PURCHASE 576
+    PO-WH-202602-0002 [COMPLETED] ord 576 rcv 576
+  Issues:
+    - OVERSOLD: sold 626 vs PO+opening inflow 826 (negative stock allowed)
+
+Row 33 | puppy paw 3 kg
+  DB: Puppy Paw dog food 3 KG (WH049) id=1578
+  Excel 26 | DB -21 | Diff 47 | Root: Fully sold in system; Excel has stock
+  Ledger: opening +15, PO +252, sold -284, returns +0, restock +11, adj -15/+0 => -21
+  sale_items: 273 (28 inv) | return_items: 0 (0 ret)
+  PO lines: 4 | ordered 292 | received 252 | ledger PURCHASE 252
+    PO-WH-202602-0012 [COMPLETED] ord 12 rcv 12
+    PO-WH-202603-0004 [COMPLETED] ord 40 rcv 40
+    PO-WH-202604-0004 [COMPLETED] ord 200 rcv 200
+    PO-WH-202606-0003 [PENDING] ord 40 rcv 0 **PARTIAL**
+  Issues:
+    - SALE_TRACKING: sale_items=273 vs ledger SALE=284 (warehouse sales often ledger-only)
+    - PO PO-WH-202606-0003: ordered 40, received 0 (pending 40)
+    - OVERSOLD: sold 284 vs PO+opening inflow 267 (negative stock allowed)
+    - SOLD_OUT_IN_SYSTEM: all receipts sold; Excel still shows 26 — missing PO or unposted stock
+    - SALE_EDITS: 4 restock events (+11) from sale edits/deletes
+
+Row 20 | jungle pate kitten
+  DB: Jungle Pate kitten Chicken+Milk 100g (WH115) id=1644
+  Excel 64 | DB 96 | Diff -32 | Root: Count variance / sales vs Excel date
+  Ledger: opening +224, PO +480, sold -384, returns +0, restock +0, adj -224/+0 => 96
+  sale_items: 384 (11 inv) | return_items: 0 (0 ret)
+  PO lines: 1 | ordered 480 | received 480 | ledger PURCHASE 480
+    PO-WH-202602-0002 [COMPLETED] ord 480 rcv 480
+  Issues:
+
+Row 21 | jungle pate Adult
+  DB: Jungle Pate Adult 1+ Chicken 100g (WH114) id=1643
+  Excel 64 | DB 96 | Diff -32 | Root: Count variance / sales vs Excel date
+  Ledger: opening +192, PO +480, sold -384, returns +0, restock +0, adj -192/+0 => 96
+  sale_items: 384 (10 inv) | return_items: 0 (0 ret)
+  PO lines: 1 | ordered 480 | received 480 | ledger PURCHASE 480
+    PO-WH-202602-0002 [COMPLETED] ord 480 rcv 480
+  Issues:
+
+Row 2 | felicia digest 2 kg
+  DB: Felicia Adult Digest Care Chicken 2kg (WH086) id=1615
+  Excel 124 | DB 152 | Diff -28 | Root: Count variance / sales vs Excel date
+  Ledger: opening +196, PO +268, sold -116, returns +0, restock +0, adj -196/+0 => 152
+  sale_items: 116 (14 inv) | return_items: 0 (0 ret)
+  PO lines: 3 | ordered 268 | received 268 | ledger PURCHASE 268
+    PO-WH-202602-0003 [COMPLETED] ord 28 rcv 28
+    PO-WH-202604-0030 [COMPLETED] ord 40 rcv 40
+    PO-WH-202604-0036 [COMPLETED] ord 200 rcv 200
+  Issues:
+
+Row 13 | felicia pouch Adult Chicken 85g
+  DB: Felicia Pouch Adult Chicken 85g (WH072) id=1601
+  Excel 120 | DB 146 | Diff -26 | Root: Count variance / sales vs Excel date
+  Ledger: opening +230, PO +324, sold -190, returns +0, restock +12, adj -230/+0 => 146
+  sale_items: 178 (12 inv) | return_items: 0 (0 ret)
+  PO lines: 1 | ordered 324 | received 324 | ledger PURCHASE 324
+    PO-WH-202602-0003 [COMPLETED] ord 324 rcv 324
+  Issues:
+    - SALE_TRACKING: sale_items=178 vs ledger SALE=190 (warehouse sales often ledger-only)
+    - SALE_EDITS: 1 restock events (+12) from sale edits/deletes
+
+Row 24 | jungle creamy treat Tuna
+  DB: Jungle Creamy Treat Tuna (WH110) id=1639
+  Excel 0 | DB 12 | Diff -12 | Root: Excel zero but system has stock
+  Ledger: opening +252, PO +600, sold -588, returns +0, restock +0, adj -252/+0 => 12
+  sale_items: 588 (15 inv) | return_items: 0 (0 ret)
+  PO lines: 2 | ordered 600 | received 600 | ledger PURCHASE 600
+    PO-WH-202602-0002 [COMPLETED] ord 576 rcv 576
+    PO-WH-202602-0009 [COMPLETED] ord 24 rcv 24
+  Issues:
+
+Row 34 | big paw high energy 20 kg
+  DB: Big paw high energy dog food  20kg (WH051) id=1580
+  Excel 7 | DB -3 | Diff 10 | Root: Fully sold in system; Excel has stock
+  Ledger: opening +0, PO +7, sold -11, returns +0, restock +1, adj -0/+0 => -3
+  sale_items: 10 (8 inv) | return_items: 0 (0 ret)
+  PO lines: 3 | ordered 17 | received 7 | ledger PURCHASE 7
+    PO-WH-202602-0012 [COMPLETED] ord 2 rcv 2
+    PO-WH-202603-0004 [COMPLETED] ord 5 rcv 5
+    PO-WH-202606-0003 [PENDING] ord 10 rcv 0 **PARTIAL**
+  Issues:
+    - PO PO-WH-202606-0003: ordered 10, received 0 (pending 10)
+    - OVERSOLD: sold 11 vs PO+opening inflow 7 (negative stock allowed)
+    - SOLD_OUT_IN_SYSTEM: all receipts sold; Excel still shows 7 — missing PO or unposted stock
+    - SALE_EDITS: 1 restock events (+1) from sale edits/deletes
+
+Row 32 | big paw 3 kg
+  DB: Big Paw Adult dog food 3kg (WH050) id=1579
+  Excel 22 | DB 30 | Diff -8 | Root: Count variance / sales vs Excel date
+  Ledger: opening +56, PO +460, sold -447, returns +0, restock +17, adj -56/+0 => 30
+  sale_items: 430 (23 inv) | return_items: 0 (0 ret)
+  PO lines: 3 | ordered 460 | received 460 | ledger PURCHASE 460
+    PO-WH-202602-0012 [COMPLETED] ord 20 rcv 20
+    PO-WH-202603-0004 [COMPLETED] ord 40 rcv 40
+    PO-WH-202604-0004 [COMPLETED] ord 400 rcv 400
+  Issues:
+    - SALE_TRACKING: sale_items=430 vs ledger SALE=447 (warehouse sales often ledger-only)
+    - SALE_EDITS: 5 restock events (+17) from sale edits/deletes
+
+Row 6 | felicia kitten chicken 2 kg
+  DB: Felicia Kitten Dry Chicken 1-12 2kg (WH078) id=1607
+  Excel 180 | DB 186 | Diff -6 | Root: Count variance / sales vs Excel date
+  Ledger: opening +200, PO +280, sold -118, returns +0, restock +24, adj -200/+0 => 186
+  sale_items: 94 (17 inv) | return_items: 0 (0 ret)
+  PO lines: 3 | ordered 280 | received 280 | ledger PURCHASE 280
+    PO-WH-202602-0003 [COMPLETED] ord 32 rcv 32
+    PO-WH-202602-0013 [COMPLETED] ord 4 rcv 4
+    PO-WH-202604-0035 [COMPLETED] ord 244 rcv 244
+  Issues:
+    - SALE_TRACKING: sale_items=94 vs ledger SALE=118 (warehouse sales often ledger-only)
+
+Row 16 | jungle Adult 15 kg
+  DB: Jungle Adult Dry Chicken Fish 15kg (WH105) id=1634
+  Excel 0 | DB 6 | Diff -6 | Root: Excel zero but system has stock
+  Ledger: opening +12, PO +34, sold -35, returns +0, restock +7, adj -12/+0 => 6
+  sale_items: 28 (12 inv) | return_items: 0 (0 ret)
+  PO lines: 2 | ordered 34 | received 34 | ledger PURCHASE 34
+    PO-WH-202602-0013 [COMPLETED] ord 14 rcv 14
+    PO-WH-202604-0035 [COMPLETED] ord 20 rcv 20
+  Issues:
+    - SALE_TRACKING: sale_items=28 vs ledger SALE=35 (warehouse sales often ledger-only)
+    - SALE_EDITS: 3 restock events (+5) from sale edits/deletes
+
+Row 31 | pawfect Adult 10 kg
+  DB: Pawfect Adult 10KG (PAWFECTADULT10KG-312512) id=2312
+  Excel 8 | DB 3 | Diff 5 | Root: Physical count higher than system
+  Ledger: opening +9, PO +20, sold -26, returns +0, restock +9, adj -9/+0 => 3
+  sale_items: 17 (6 inv) | return_items: 0 (0 ret)
+  PO lines: 2 | ordered 25 | received 20 | ledger PURCHASE 20
+    PO-WH-202604-0004 [COMPLETED] ord 20 rcv 20
+    PO-WH-202606-0003 [PENDING] ord 5 rcv 0 **PARTIAL**
+  Issues:
+    - SALE_TRACKING: sale_items=17 vs ledger SALE=26 (warehouse sales often ledger-only)
+    - PO PO-WH-202606-0003: ordered 5, received 0 (pending 5)
+    - SALE_EDITS: 4 restock events (+9) from sale edits/deletes
+
+Row 7 | felicia kitten lamb 2 kg
+  DB: Felicia Kitten Dry Lamb 1-12 2kg (WH083) id=1612
+  Excel 108 | DB 112 | Diff -4 | Root: Count variance / sales vs Excel date
+  Ledger: opening +152, PO +236, sold -128, returns +0, restock +4, adj -152/+0 => 112
+  sale_items: 124 (18 inv) | return_items: 0 (0 ret)
+  PO lines: 2 | ordered 236 | received 236 | ledger PURCHASE 236
+    PO-WH-202602-0003 [COMPLETED] ord 56 rcv 56
+    PO-WH-202604-0035 [COMPLETED] ord 180 rcv 180
+  Issues:
+    - SALE_TRACKING: sale_items=124 vs ledger SALE=128 (warehouse sales often ledger-only)
+    - SALE_EDITS: 1 restock events (+4) from sale edits/deletes
+
+Row 14 | jungle kitten 15 kg
+  DB: Jungle Kitten Dry Chicken 15kg (WH100) id=1629
+  Excel 0 | DB -3 | Diff 3 | Root: Fully sold in system; Excel has stock
+  Ledger: opening +4, PO +42, sold -52, returns +0, restock +7, adj -4/+0 => -3
+  sale_items: 45 (15 inv) | return_items: 0 (0 ret)
+  PO lines: 3 | ordered 42 | received 42 | ledger PURCHASE 42
+    PO-WH-202602-0013 [COMPLETED] ord 15 rcv 15
+    PO-WH-202604-0024 [COMPLETED] ord 7 rcv 7
+    PO-WH-202604-0035 [COMPLETED] ord 20 rcv 20
+  Issues:
+    - SALE_TRACKING: sale_items=45 vs ledger SALE=52 (warehouse sales often ledger-only)
+    - OVERSOLD: sold 52 vs PO+opening inflow 46 (negative stock allowed)
+    - SOLD_OUT_IN_SYSTEM: all receipts sold; Excel still shows 0 — missing PO or unposted stock
+    - SALE_EDITS: 3 restock events (+5) from sale edits/deletes
+
+Row 4 | felicia digest 12 kg
+  DB: Felicia Adult Digest Chicken 12kg (WH087) id=1616
+  Excel 7 | DB 5 | Diff 2 | Root: Physical count higher than system
+  Ledger: opening +10, PO +23, sold -20, returns +0, restock +2, adj -10/+0 => 5
+  sale_items: 18 (8 inv) | return_items: 0 (0 ret)
+  PO lines: 2 | ordered 23 | received 23 | ledger PURCHASE 23
+    PO-WH-202602-0003 [COMPLETED] ord 3 rcv 3
+    PO-WH-202604-0035 [COMPLETED] ord 20 rcv 20
+  Issues:
+    - SALE_TRACKING: sale_items=18 vs ledger SALE=20 (warehouse sales often ledger-only)
+    - SALE_EDITS: 2 restock events (+2) from sale edits/deletes
+
+Row 11 | felicia pouch kitten  chicken 85g
+  DB: Felicia Pouch Kitten Chicken 85g (WH068) id=1597
+  Excel 564 | DB 566 | Diff -2 | Root: Count variance / sales vs Excel date
+  Ledger: opening +626, PO +720, sold -154, returns +0, restock +0, adj -626/+0 => 566
+  sale_items: 154 (8 inv) | return_items: 0 (0 ret)
+  PO lines: 2 | ordered 720 | received 720 | ledger PURCHASE 720
+    PO-WH-202602-0003 [COMPLETED] ord 360 rcv 360
+    PO-WH-202604-0035 [COMPLETED] ord 360 rcv 360
+  Issues:
+
+====================================================================================================
+ISSUE TYPE SUMMARY (how many items affected)
+  SALE_TRACKING: 19 items
+  SALE_EDITS: 17 items
+  PO PO-WH-202606-0003: 7 items
+  OVERSOLD: 7 items
+  PO PO-WH-202605-0008: 6 items
+  SOLD_OUT_IN_SYSTEM: 5 items
+  HIGH_SALES_AFTER_OPENING_WIPE: 2 items
+  LEGACY_SKU: 1 items
+  NO_PO_RECEIPTS: 1 items
+
+ROOT CAUSE SUMMARY
+  Count variance / sales vs Excel date: 13
+  Physical count higher than system: 9
+  Fully sold in system; Excel has stock: 5
+  Excel zero but system has stock: 5
+  Oversold vs PO receipts: 2

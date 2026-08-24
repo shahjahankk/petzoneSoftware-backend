@@ -1,0 +1,636 @@
+{
+  "apply": true,
+  "poResults": [
+    {
+      "orderNumber": "PO-WH-202605-0008",
+      "poId": 99,
+      "action": "COMPLETED",
+      "lines": [
+        {
+          "poiId": 547,
+          "itemId": 2782,
+          "name": "Whiskas Ocean delight 1+ in jelly",
+          "add": 336,
+          "wear": true
+        },
+        {
+          "poiId": 548,
+          "itemId": 2781,
+          "name": "whiskas Surf Turf 1+ in jelly",
+          "add": 336,
+          "wear": false
+        },
+        {
+          "poiId": 549,
+          "itemId": 1916,
+          "name": "Whiskas Pouch 1+ Fish Favourites In Jelly 85g",
+          "add": 528,
+          "wear": true
+        },
+        {
+          "poiId": 550,
+          "itemId": 2395,
+          "name": "whiskas pouch 2-12 poultry in jelly 85g",
+          "add": 144,
+          "wear": true
+        },
+        {
+          "poiId": 551,
+          "itemId": 1919,
+          "name": "Whiskas Pouch 1+ Poultry Feasts In Gravy 85g",
+          "add": 720,
+          "wear": true
+        },
+        {
+          "poiId": 552,
+          "itemId": 1916,
+          "name": "Whiskas Pouch 1+ Fish Favourites In Jelly 85g",
+          "add": 960,
+          "wear": true
+        },
+        {
+          "poiId": 553,
+          "itemId": 1925,
+          "name": "Whiskas Pouch Tasty Mix Chefs Choice In Gravy 85g",
+          "add": 384,
+          "wear": true
+        }
+      ]
+    },
+    {
+      "orderNumber": "PO-WH-202606-0003",
+      "poId": 102,
+      "action": "COMPLETED",
+      "lines": [
+        {
+          "poiId": 558,
+          "itemId": 1580,
+          "name": "Big paw high energy dog food  20kg",
+          "add": 10,
+          "wear": true
+        },
+        {
+          "poiId": 559,
+          "itemId": 1578,
+          "name": "Puppy Paw dog food 3 KG",
+          "add": 40,
+          "wear": true
+        },
+        {
+          "poiId": 560,
+          "itemId": 1575,
+          "name": "Pawfect Adult 1 kg",
+          "add": 1210,
+          "wear": true
+        },
+        {
+          "poiId": 561,
+          "itemId": 1574,
+          "name": "Pawfect Kitten 1 kg",
+          "add": 400,
+          "wear": true
+        },
+        {
+          "poiId": 562,
+          "itemId": 1576,
+          "name": "Pawfect kittan 500g",
+          "add": 280,
+          "wear": true
+        },
+        {
+          "poiId": 563,
+          "itemId": 1577,
+          "name": "Pawfect adult500g",
+          "add": 300,
+          "wear": true
+        },
+        {
+          "poiId": 564,
+          "itemId": 2312,
+          "name": "Pawfect Adult 10KG",
+          "add": 5,
+          "wear": true
+        }
+      ]
+    }
+  ],
+  "adjustResults": [
+    {
+      "row": 27,
+      "name": "pawfect Kitten 1 kg",
+      "itemId": 1574,
+      "excelQty": 550,
+      "before": 1040,
+      "sku": "WH045",
+      "dbName": "Pawfect Kitten 1 kg",
+      "after": 550,
+      "delta": -490,
+      "action": "ADJUSTED"
+    },
+    {
+      "row": 29,
+      "name": "pawfect Adult 1 kg",
+      "itemId": 1575,
+      "excelQty": 990,
+      "before": 1629,
+      "sku": "WH046",
+      "dbName": "Pawfect Adult 1 kg",
+      "after": 990,
+      "delta": -639,
+      "action": "ADJUSTED"
+    },
+    {
+      "row": 28,
+      "name": "pawfect Kitten 500 g",
+      "itemId": 1576,
+      "excelQty": 313,
+      "before": 301,
+      "sku": "WH047",
+      "dbName": "Pawfect kittan 500g",
+      "after": 313,
+      "delta": 12,
+      "action": "ADJUSTED"
+    },
+    {
+      "row": 30,
+      "name": "pawfect Adult 500 g",
+      "itemId": 1577,
+      "excelQty": 351,
+      "before": 293,
+      "sku": "WH048",
+      "dbName": "Pawfect adult500g",
+      "after": 351,
+      "delta": 58,
+      "action": "ADJUSTED"
+    },
+    {
+      "row": 33,
+      "name": "puppy paw 3 kg",
+      "itemId": 1578,
+      "excelQty": 26,
+      "before": 19,
+      "sku": "WH049",
+      "dbName": "Puppy Paw dog food 3 KG",
+      "after": 26,
+      "delta": 7,
+      "action": "ADJUSTED"
+    },
+    {
+      "row": 32,
+      "name": "big paw 3 kg",
+      "itemId": 1579,
+      "excelQty": 22,
+      "before": 30,
+      "sku": "WH050",
+      "dbName": "Big Paw Adult dog food 3kg",
+      "after": 22,
+      "delta": -8,
+      "action": "ADJUSTED"
+    },
+    {
+      "row": 34,
+      "name": "big paw high energy 20 kg",
+      "itemId": 1580,
+      "excelQty": 7,
+      "before": 7,
+      "sku": "WH051",
+      "dbName": "Big paw high energy dog food  20kg",
+      "after": 7,
+      "delta": 0,
+      "action": "OK"
+    },
+    {
+      "row": 11,
+      "name": "felicia pouch kitten  chicken 85g",
+      "itemId": 1597,
+      "excelQty": 564,
+      "before": 566,
+      "sku": "WH068",
+      "dbName": "Felicia Pouch Kitten Chicken 85g",
+      "after": 564,
+      "delta": -2,
+      "action": "ADJUSTED"
+    },
+    {
+      "row": 12,
+      "name": "felicia pouch kitten  lamb 85g",
+      "itemId": 1598,
+      "excelQty": 348,
+      "before": 348,
+      "sku": "WH069",
+      "dbName": "Felicia pouch Kitten Lamb 85g",
+      "after": 348,
+      "delta": 0,
+      "action": "OK"
+    },
+    {
+      "row": 10,
+      "name": "felicia pouch Adult salmon 85 g",
+      "itemId": 1599,
+      "excelQty": 420,
+      "before": 420,
+      "sku": "WH070",
+      "dbName": "Felicia Pouch Adult Salmon 85g",
+      "after": 420,
+      "delta": 0,
+      "action": "OK"
+    },
+    {
+      "row": 13,
+      "name": "felicia pouch Adult Chicken 85g",
+      "itemId": 1601,
+      "excelQty": 120,
+      "before": 146,
+      "sku": "WH072",
+      "dbName": "Felicia Pouch Adult Chicken 85g",
+      "after": 120,
+      "delta": -26,
+      "action": "ADJUSTED"
+    },
+    {
+      "row": 6,
+      "name": "felicia kitten chicken 2 kg",
+      "itemId": 1607,
+      "excelQty": 180,
+      "before": 186,
+      "sku": "WH078",
+      "dbName": "Felicia Kitten Dry Chicken 1-12 2kg",
+      "after": 180,
+      "delta": -6,
+      "action": "ADJUSTED"
+    },
+    {
+      "row": 8,
+      "name": "felicia kitten chicken12 kg",
+      "itemId": 1608,
+      "excelQty": 7,
+      "before": 7,
+      "sku": "WH079",
+      "dbName": "Felicia Kitten Dry Chicken 1-12 12kg",
+      "after": 7,
+      "delta": 0,
+      "action": "OK"
+    },
+    {
+      "row": 7,
+      "name": "felicia kitten lamb 2 kg",
+      "itemId": 1612,
+      "excelQty": 108,
+      "before": 112,
+      "sku": "WH083",
+      "dbName": "Felicia Kitten Dry Lamb 1-12 2kg",
+      "after": 108,
+      "delta": -4,
+      "action": "ADJUSTED"
+    },
+    {
+      "row": 9,
+      "name": "felicia kitten lamb 12 kg",
+      "itemId": 1613,
+      "excelQty": 3,
+      "before": 3,
+      "sku": "WH084",
+      "dbName": "Felicia Kitten Dry Lamb 1-12 12kg",
+      "after": 3,
+      "delta": 0,
+      "action": "OK"
+    },
+    {
+      "row": 2,
+      "name": "felicia digest 2 kg",
+      "itemId": 1615,
+      "excelQty": 124,
+      "before": 152,
+      "sku": "WH086",
+      "dbName": "Felicia Adult Digest Care Chicken 2kg",
+      "after": 124,
+      "delta": -28,
+      "action": "ADJUSTED"
+    },
+    {
+      "row": 4,
+      "name": "felicia digest 12 kg",
+      "itemId": 1616,
+      "excelQty": 7,
+      "before": 5,
+      "sku": "WH087",
+      "dbName": "Felicia Adult Digest Chicken 12kg",
+      "after": 7,
+      "delta": 2,
+      "action": "ADJUSTED"
+    },
+    {
+      "row": 5,
+      "name": "felicia derma 2 kg",
+      "itemId": 1617,
+      "excelQty": 8,
+      "before": 8,
+      "sku": "WH088",
+      "dbName": "Felicia Adult Derma Care Salmon 2kg",
+      "after": 8,
+      "delta": 0,
+      "action": "OK"
+    },
+    {
+      "row": 1,
+      "name": "felicia urinary 2 kg",
+      "itemId": 1619,
+      "excelQty": 76,
+      "before": -42,
+      "sku": "WH090",
+      "dbName": "Felicia Adult Uniary Care Streilised Chicken 2kg",
+      "after": 76,
+      "delta": 118,
+      "action": "ADJUSTED"
+    },
+    {
+      "row": 15,
+      "name": "jungle kitten 1.5 kg",
+      "itemId": 1628,
+      "excelQty": 0,
+      "before": 88,
+      "sku": "WH099",
+      "dbName": "Jungle kitten Dry Chicken 1.5kg",
+      "after": 0,
+      "delta": -88,
+      "action": "ADJUSTED"
+    },
+    {
+      "row": 14,
+      "name": "jungle kitten 15 kg",
+      "itemId": 1629,
+      "excelQty": 0,
+      "before": -3,
+      "sku": "WH100",
+      "dbName": "Jungle Kitten Dry Chicken 15kg",
+      "after": 0,
+      "delta": 3,
+      "action": "ADJUSTED"
+    },
+    {
+      "row": 17,
+      "name": "jungle Adult 1.5 kg",
+      "itemId": 1633,
+      "excelQty": 0,
+      "before": 82,
+      "sku": "WH104",
+      "dbName": "Jungle Adult Dry Chicken Fish 1.5kg",
+      "after": 0,
+      "delta": -82,
+      "action": "ADJUSTED"
+    },
+    {
+      "row": 16,
+      "name": "jungle Adult 15 kg",
+      "itemId": 1634,
+      "excelQty": 0,
+      "before": 6,
+      "sku": "WH105",
+      "dbName": "Jungle Adult Dry Chicken Fish 15kg",
+      "after": 0,
+      "delta": -6,
+      "action": "ADJUSTED"
+    },
+    {
+      "row": 18,
+      "name": "jungle pouch Kitten",
+      "itemId": 1636,
+      "excelQty": 24,
+      "before": 120,
+      "sku": "WH107",
+      "dbName": "Jungle Pouch Kitten Chicken100 G",
+      "after": 24,
+      "delta": -96,
+      "action": "ADJUSTED"
+    },
+    {
+      "row": 19,
+      "name": "jungle pouch Adult",
+      "itemId": 1637,
+      "excelQty": 168,
+      "before": 234,
+      "sku": "WH108",
+      "dbName": "Jungle Pouch Adult Chicken 100 G",
+      "after": 168,
+      "delta": -66,
+      "action": "ADJUSTED"
+    },
+    {
+      "row": 22,
+      "name": "jungle creamy treat chicken",
+      "itemId": 1638,
+      "excelQty": 0,
+      "before": 96,
+      "sku": "WH109",
+      "dbName": "Jungle Creamy Treat Chichen",
+      "after": 0,
+      "delta": -96,
+      "action": "ADJUSTED"
+    },
+    {
+      "row": 24,
+      "name": "jungle creamy treat Tuna",
+      "itemId": 1639,
+      "excelQty": 0,
+      "before": 12,
+      "sku": "WH110",
+      "dbName": "Jungle Creamy Treat Tuna",
+      "after": 0,
+      "delta": -12,
+      "action": "ADJUSTED"
+    },
+    {
+      "row": 23,
+      "name": "jungle creamy treat Salmon",
+      "itemId": 1640,
+      "excelQty": 0,
+      "before": -50,
+      "sku": "WH111",
+      "dbName": "Jungle Creamy Treat Salmon",
+      "after": 0,
+      "delta": 50,
+      "action": "ADJUSTED"
+    },
+    {
+      "row": 21,
+      "name": "jungle pate Adult",
+      "itemId": 1643,
+      "excelQty": 64,
+      "before": 96,
+      "sku": "WH114",
+      "dbName": "Jungle Pate Adult 1+ Chicken 100g",
+      "after": 64,
+      "delta": -32,
+      "action": "ADJUSTED"
+    },
+    {
+      "row": 20,
+      "name": "jungle pate kitten",
+      "itemId": 1644,
+      "excelQty": 64,
+      "before": 96,
+      "sku": "WH115",
+      "dbName": "Jungle Pate kitten Chicken+Milk 100g",
+      "after": 64,
+      "delta": -32,
+      "action": "ADJUSTED"
+    },
+    {
+      "row": 39,
+      "name": "whiskas fish 1+ in jelly",
+      "itemId": 1916,
+      "excelQty": 624,
+      "before": 1488,
+      "sku": "WH387",
+      "dbName": "Whiskas Pouch 1+ Fish Favourites In Jelly 85g",
+      "after": 624,
+      "delta": -864,
+      "action": "ADJUSTED"
+    },
+    {
+      "row": 42,
+      "name": "whiskas meals mealty 1+ in gravy",
+      "itemId": 1917,
+      "excelQty": 2016,
+      "before": 2292,
+      "sku": "WH388",
+      "dbName": "Whiskas Pouch 1+ Meaty Meal In Gravy 85g",
+      "after": 2016,
+      "delta": -276,
+      "action": "ADJUSTED"
+    },
+    {
+      "row": 40,
+      "name": "whiskas mixed menu 1+ in jelly",
+      "itemId": 1918,
+      "excelQty": 1344,
+      "before": 1728,
+      "sku": "WH389",
+      "dbName": "Whiskas Pouch 1+ Mixed Menu In Jelly 85g",
+      "after": 1344,
+      "delta": -384,
+      "action": "ADJUSTED"
+    },
+    {
+      "row": 36,
+      "name": "whiskas poultry 1+ in gravy",
+      "itemId": 1919,
+      "excelQty": 1200,
+      "before": 1472,
+      "sku": "WH390",
+      "dbName": "Whiskas Pouch 1+ Poultry Feasts In Gravy 85g",
+      "after": 1200,
+      "delta": -272,
+      "action": "ADJUSTED"
+    },
+    {
+      "row": 37,
+      "name": "whiskas poultry 1+ in jelly",
+      "itemId": 1920,
+      "excelQty": 1056,
+      "before": 500,
+      "sku": "WH391",
+      "dbName": "Whiskas Pouch 1+ Poultry Feasts In Jelly 85g",
+      "after": 1056,
+      "delta": 556,
+      "action": "ADJUSTED"
+    },
+    {
+      "row": 41,
+      "name": "whiskas mixed menu 2-12 in jelly",
+      "itemId": 1923,
+      "excelQty": 1584,
+      "before": 1920,
+      "sku": "WH394",
+      "dbName": "Whiskas Pouch Kitten 2-12 Mixed Menu In Jelly 85g",
+      "after": 1584,
+      "delta": -336,
+      "action": "ADJUSTED"
+    },
+    {
+      "row": 44,
+      "name": "whiskas catch of the day 1+ in gravy",
+      "itemId": 1924,
+      "excelQty": 336,
+      "before": 336,
+      "sku": "WH395",
+      "dbName": "Whiskas Pouch Tasty Mix Catch Of The Day In Gravy 85g",
+      "after": 336,
+      "delta": 0,
+      "action": "OK"
+    },
+    {
+      "row": 43,
+      "name": "whiskas chef choice 1+ in gravy",
+      "itemId": 1925,
+      "excelQty": 336,
+      "before": 432,
+      "sku": "WH396",
+      "dbName": "Whiskas Pouch Tasty Mix Chefs Choice In Gravy 85g",
+      "after": 336,
+      "delta": -96,
+      "action": "ADJUSTED"
+    },
+    {
+      "row": 31,
+      "name": "pawfect Adult 10 kg",
+      "itemId": 2312,
+      "excelQty": 8,
+      "before": 8,
+      "sku": "PAWFECTADULT10KG-312512",
+      "dbName": "Pawfect Adult 10KG",
+      "after": 8,
+      "delta": 0,
+      "action": "OK"
+    },
+    {
+      "row": 35,
+      "name": "whiskas poultry 2-12 in jelly",
+      "itemId": 2395,
+      "excelQty": 1728,
+      "before": 1728,
+      "sku": "WHISKASPOUCH212POULTRYINJELLY85G-064161",
+      "dbName": "whiskas pouch 2-12 poultry in jelly 85g",
+      "after": 1728,
+      "delta": 0,
+      "action": "OK"
+    },
+    {
+      "row": 38,
+      "name": "whiskas fish 2-12 in jelly",
+      "itemId": 2396,
+      "excelQty": 2016,
+      "before": 2016,
+      "sku": "WHISKAS212FISHINJELLY85G-171698",
+      "dbName": "Whiskas 2-12 Fish in jelly 85g",
+      "after": 2016,
+      "delta": 0,
+      "action": "OK"
+    },
+    {
+      "row": 3,
+      "name": "felicia urinary 12 kg",
+      "itemId": 2408,
+      "excelQty": 10,
+      "before": 10,
+      "sku": "FELICIACATFOODURINARY12KG-504901",
+      "dbName": "Felicia Cat Food Urinary 12 Kg",
+      "after": 10,
+      "delta": 0,
+      "action": "OK"
+    },
+    {
+      "row": 45,
+      "name": "whiskas ocean delight 1+ in jelly",
+      "itemId": 2782,
+      "excelQty": 48,
+      "before": 96,
+      "sku": "WH-UNIT6WAREH-WOD1-0001",
+      "dbName": "Whiskas Ocean delight 1+ in jelly",
+      "after": 48,
+      "delta": -48,
+      "action": "ADJUSTED"
+    }
+  ],
+  "remaining": []
+}

@@ -1,0 +1,171 @@
+DUPLICATE USAGE REPORT
+
+Balls
+  id=1822 sku=WH293 stock=0
+    Active invoices: 0 (qty 0)
+    PO received: 0 | Returns: 0 | Transfers: 0
+    Ledger net: 0
+  id=2763 sku=WH-UNIT6WAREH-BALL-0001 stock=-8
+    Active invoices: 1 (qty 8)
+    PO received: 0 | Returns: 0 | Transfers: 0
+    Ledger net: -8
+    Recent invoices: #451 qty=8.000
+  RECOMMENDATION: KEEP 2763 (WH-UNIT6WAREH-BALL-0001)
+                  RETIRE 1822 (WH293)
+                  Only B has active invoice lines
+
+Royal Canin Gastrointestinal 400g
+  id=1539 sku=WH010 stock=-12
+    Active invoices: 3 (qty 13)
+    PO received: 0 | Returns: 0 | Transfers: 0
+    Ledger net: -12
+    Recent invoices: #459 qty=1.000, #318 qty=6.000, #317 qty=6.000
+  id=2753 sku=WH-2-RCG4-0001 stock=12
+    Active invoices: 0 (qty 0)
+    PO received: 12 | Returns: 0 | Transfers: 0
+    Ledger net: 12
+  RECOMMENDATION: KEEP 1539 (WH010)
+                  RETIRE 2753 (WH-2-RCG4-0001)
+                  Only A has active invoice lines
+
+Royal Canin Hair & Skin Care 2 KG
+  id=1535 sku=WH006 stock=-20
+    Active invoices: 4 (qty 20)
+    PO received: 0 | Returns: 0 | Transfers: 0
+    Ledger net: -20
+    Recent invoices: #461 qty=1.000, #459 qty=1.000, #318 qty=9.000, #317 qty=9.000
+  id=2759 sku=WH-2-RCHS-0001 stock=18
+    Active invoices: 0 (qty 0)
+    PO received: 18 | Returns: 0 | Transfers: 0
+    Ledger net: 18
+  RECOMMENDATION: KEEP 1535 (WH006)
+                  RETIRE 2759 (WH-2-RCHS-0001)
+                  Only A has active invoice lines
+
+Royal Canin Jelly Instintcive 85G
+  id=1543 sku=WH014 stock=-193
+    Active invoices: 5 (qty 193)
+    PO received: 0 | Returns: 0 | Transfers: 0
+    Ledger net: -193
+    Recent invoices: #465 qty=48.000, #449 qty=48.000, #422 qty=1.000, #318 qty=48.000, #317 qty=48.000
+  id=2755 sku=WH-2-RCJI-0001 stock=72
+    Active invoices: 1 (qty 24)
+    PO received: 96 | Returns: 0 | Transfers: 0
+    Ledger net: 72
+    Recent invoices: #504 qty=24.000
+  RECOMMENDATION: KEEP 1543 (WH014)
+                  RETIRE 2755 (WH-2-RCJI-0001)
+                  A has more invoices
+
+Royal Canin jelly Sensitive pouch
+  id=2409 sku=ROYALCANINJELLYSENSITIVEPOUCH-251938 stock=-48
+    Active invoices: 2 (qty 48)
+    PO received: 0 | Returns: 0 | Transfers: 0
+    Ledger net: -48
+    Recent invoices: #318 qty=24.000, #317 qty=24.000
+  id=2760 sku=WH-2-RCJS-0001 stock=48
+    Active invoices: 0 (qty 0)
+    PO received: 48 | Returns: 0 | Transfers: 0
+    Ledger net: 48
+  RECOMMENDATION: KEEP 2409 (ROYALCANINJELLYSENSITIVEPOUCH-251938)
+                  RETIRE 2760 (WH-2-RCJS-0001)
+                  Only A has active invoice lines
+
+Royal Canin Maxi Adult 15 KG
+  id=1554 sku=WH025 stock=-3
+    Active invoices: 2 (qty 3)
+    PO received: 0 | Returns: 0 | Transfers: 0
+    Ledger net: -3
+    Recent invoices: #318 qty=1.000, #317 qty=2.000
+  id=2757 sku=WH-2-RCMA-0001 stock=3
+    Active invoices: 0 (qty 0)
+    PO received: 3 | Returns: 0 | Transfers: 0
+    Ledger net: 3
+  RECOMMENDATION: KEEP 1554 (WH025)
+                  RETIRE 2757 (WH-2-RCMA-0001)
+                  Only A has active invoice lines
+
+Royal Canin Maxi puppy 15 KG
+  id=1553 sku=WH024 stock=-1
+    Active invoices: 1 (qty 1)
+    PO received: 0 | Returns: 0 | Transfers: 0
+    Ledger net: -1
+    Recent invoices: #317 qty=1.000
+  id=2758 sku=WH-2-RCMP-0001 stock=1
+    Active invoices: 0 (qty 0)
+    PO received: 1 | Returns: 0 | Transfers: 0
+    Ledger net: 1
+  RECOMMENDATION: KEEP 1553 (WH024)
+                  RETIRE 2758 (WH-2-RCMP-0001)
+                  Only A has active invoice lines
+
+Royal Canin Maxi Starter  15 KG
+  id=1551 sku=WH022 stock=-1
+    Active invoices: 1 (qty 1)
+    PO received: 0 | Returns: 0 | Transfers: 0
+    Ledger net: -1
+    Recent invoices: #318 qty=1.000
+  id=2761 sku=WH-2-RCMS-0001 stock=1
+    Active invoices: 0 (qty 0)
+    PO received: 1 | Returns: 0 | Transfers: 0
+    Ledger net: 1
+  RECOMMENDATION: KEEP 1551 (WH022)
+                  RETIRE 2761 (WH-2-RCMS-0001)
+                  Only A has active invoice lines
+
+Royal Canin Persian Adult 10 KG
+  id=1569 sku=WH040 stock=-4
+    Active invoices: 2 (qty 4)
+    PO received: 0 | Returns: 0 | Transfers: 0
+    Ledger net: -4
+    Recent invoices: #318 qty=2.000, #317 qty=2.000
+  id=2750 sku=WH-2-RCPA-0001 stock=4
+    Active invoices: 0 (qty 0)
+    PO received: 4 | Returns: 0 | Transfers: 0
+    Ledger net: 4
+  RECOMMENDATION: KEEP 1569 (WH040)
+                  RETIRE 2750 (WH-2-RCPA-0001)
+                  Only A has active invoice lines
+
+Royal Canin Persian Adult 2 KG
+  id=1567 sku=WH038 stock=-13
+    Active invoices: 3 (qty 13)
+    PO received: 0 | Returns: 0 | Transfers: 0
+    Ledger net: -13
+    Recent invoices: #459 qty=1.000, #318 qty=6.000, #317 qty=6.000
+  id=2752 sku=WH-2-RCPA-0003 stock=12
+    Active invoices: 0 (qty 0)
+    PO received: 12 | Returns: 0 | Transfers: 0
+    Ledger net: 12
+  RECOMMENDATION: KEEP 1567 (WH038)
+                  RETIRE 2752 (WH-2-RCPA-0003)
+                  Only A has active invoice lines
+
+Royal Canin Persian Adult 4 KG
+  id=1568 sku=WH039 stock=-4
+    Active invoices: 2 (qty 4)
+    PO received: 0 | Returns: 0 | Transfers: 0
+    Ledger net: -4
+    Recent invoices: #318 qty=2.000, #317 qty=2.000
+  id=2751 sku=WH-2-RCPA-0002 stock=4
+    Active invoices: 0 (qty 0)
+    PO received: 4 | Returns: 0 | Transfers: 0
+    Ledger net: 4
+  RECOMMENDATION: KEEP 1568 (WH039)
+                  RETIRE 2751 (WH-2-RCPA-0002)
+                  Only A has active invoice lines
+
+Royal Canin Renal Liquid
+  id=1573 sku=WH044 stock=-9
+    Active invoices: 3 (qty 18)
+    PO received: 9 | Returns: 0 | Transfers: 0
+    Ledger net: -9
+    Recent invoices: #449 qty=9.000, #318 qty=3.000, #317 qty=6.000
+  id=2756 sku=WH-2-RCRL-0001 stock=9
+    Active invoices: 0 (qty 0)
+    PO received: 9 | Returns: 0 | Transfers: 0
+    Ledger net: 9
+  RECOMMENDATION: KEEP 1573 (WH044)
+                  RETIRE 2756 (WH-2-RCRL-0001)
+                  Only A has active invoice lines
+

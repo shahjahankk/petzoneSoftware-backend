@@ -1,0 +1,2924 @@
+[
+  {
+    "row": 39,
+    "excelName": "whiskas fish 1+ in jelly",
+    "excelQty": 624,
+    "itemId": 1916,
+    "sku": "WH387",
+    "dbName": "Whiskas Pouch 1+ Fish Favourites In Jelly 85g",
+    "dbQty": 0,
+    "diff": 624,
+    "ledger": {
+      "byType": {
+        "OPENING": {
+          "in": 816,
+          "out": 0,
+          "n": "1"
+        },
+        "PURCHASE": {
+          "in": 1236,
+          "out": 0,
+          "n": "2"
+        },
+        "SALE": {
+          "in": 0,
+          "out": 1236,
+          "n": "9"
+        },
+        "ADJUSTMENT": {
+          "in": 0,
+          "out": 816,
+          "n": "1"
+        }
+      },
+      "ledgerStock": 0
+    },
+    "saleItems": {
+      "invoices": "9",
+      "qty": 1236
+    },
+    "returns": {
+      "returns": "0",
+      "qty": 0
+    },
+    "po": {
+      "lines": [
+        {
+          "poId": 27,
+          "orderNo": "PO-WH-202602-0005",
+          "status": "COMPLETED",
+          "ordered": 180,
+          "received": 180
+        },
+        {
+          "poId": 86,
+          "orderNo": "PO-WH-202604-0032",
+          "status": "COMPLETED",
+          "ordered": 1056,
+          "received": 1056
+        },
+        {
+          "poId": 99,
+          "orderNo": "PO-WH-202605-0008",
+          "status": "PENDING",
+          "ordered": 528,
+          "received": 0
+        },
+        {
+          "poId": 99,
+          "orderNo": "PO-WH-202605-0008",
+          "status": "PENDING",
+          "ordered": 960,
+          "received": 0
+        }
+      ],
+      "ordered": 2724,
+      "received": 1236,
+      "issues": [
+        "PO PO-WH-202605-0008: ordered 528, received 0 (pending 528)",
+        "PO PO-WH-202605-0008: ordered 960, received 0 (pending 960)"
+      ]
+    },
+    "ledgerPurchase": 1236,
+    "reconcile": {
+      "out": 0,
+      "in": 0,
+      "n": "0"
+    },
+    "restockEdits": {
+      "qty": 0,
+      "n": "0"
+    },
+    "calcStock": 0,
+    "issues": [
+      "PO PO-WH-202605-0008: ordered 528, received 0 (pending 528)",
+      "PO PO-WH-202605-0008: ordered 960, received 0 (pending 960)"
+    ],
+    "rootCause": "Physical count higher than system"
+  },
+  {
+    "row": 29,
+    "excelName": "pawfect Adult 1 kg",
+    "excelQty": 990,
+    "itemId": 1575,
+    "sku": "WH046",
+    "dbName": "Pawfect Adult 1 kg",
+    "dbQty": 419,
+    "diff": 571,
+    "ledger": {
+      "byType": {
+        "OPENING": {
+          "in": 1580,
+          "out": 0,
+          "n": "1"
+        },
+        "PURCHASE": {
+          "in": 4610,
+          "out": 0,
+          "n": "5"
+        },
+        "SALE": {
+          "in": 0,
+          "out": 4582,
+          "n": "90"
+        },
+        "RETURN": {
+          "in": 10,
+          "out": 0,
+          "n": "1"
+        },
+        "RESTOCK": {
+          "in": 381,
+          "out": 0,
+          "n": "13"
+        },
+        "ADJUSTMENT": {
+          "in": 0,
+          "out": 1580,
+          "n": "1"
+        }
+      },
+      "ledgerStock": 419
+    },
+    "saleItems": {
+      "invoices": "77",
+      "qty": 4201
+    },
+    "returns": {
+      "returns": "1",
+      "qty": 10
+    },
+    "po": {
+      "lines": [
+        {
+          "poId": 28,
+          "orderNo": "PO-WH-202602-0006",
+          "status": "COMPLETED",
+          "ordered": 1660,
+          "received": 1660
+        },
+        {
+          "poId": 46,
+          "orderNo": "PO-WH-202603-0004",
+          "status": "COMPLETED",
+          "ordered": 600,
+          "received": 600
+        },
+        {
+          "poId": 56,
+          "orderNo": "PO-WH-202604-0002",
+          "status": "COMPLETED",
+          "ordered": 200,
+          "received": 200
+        },
+        {
+          "poId": 58,
+          "orderNo": "PO-WH-202604-0004",
+          "status": "COMPLETED",
+          "ordered": 2100,
+          "received": 2100
+        },
+        {
+          "poId": 77,
+          "orderNo": "PO-WH-202604-0023",
+          "status": "COMPLETED",
+          "ordered": 50,
+          "received": 50
+        },
+        {
+          "poId": 102,
+          "orderNo": "PO-WH-202606-0003",
+          "status": "PENDING",
+          "ordered": 1210,
+          "received": 0
+        }
+      ],
+      "ordered": 5820,
+      "received": 4610,
+      "issues": [
+        "PO PO-WH-202606-0003: ordered 1210, received 0 (pending 1210)"
+      ]
+    },
+    "ledgerPurchase": 4610,
+    "reconcile": {
+      "out": 0,
+      "in": 0,
+      "n": "0"
+    },
+    "restockEdits": {
+      "qty": 381,
+      "n": "13"
+    },
+    "calcStock": 419,
+    "issues": [
+      "SALE_TRACKING: sale_items=4201 vs ledger SALE=4582 (warehouse sales often ledger-only)",
+      "PO PO-WH-202606-0003: ordered 1210, received 0 (pending 1210)",
+      "SALE_EDITS: 13 restock events (+381) from sale edits/deletes"
+    ],
+    "rootCause": "Physical count higher than system"
+  },
+  {
+    "row": 37,
+    "excelName": "whiskas poultry 1+ in jelly",
+    "excelQty": 1056,
+    "itemId": 1920,
+    "sku": "WH391",
+    "dbName": "Whiskas Pouch 1+ Poultry Feasts In Jelly 85g",
+    "dbQty": 500,
+    "diff": 556,
+    "ledger": {
+      "byType": {
+        "OPENING": {
+          "in": 1848,
+          "out": 0,
+          "n": "1"
+        },
+        "PURCHASE": {
+          "in": 4080,
+          "out": 0,
+          "n": "2"
+        },
+        "SALE": {
+          "in": 0,
+          "out": 3676,
+          "n": "24"
+        },
+        "RESTOCK": {
+          "in": 96,
+          "out": 0,
+          "n": "1"
+        },
+        "ADJUSTMENT": {
+          "in": 0,
+          "out": 1848,
+          "n": "1"
+        }
+      },
+      "ledgerStock": 500
+    },
+    "saleItems": {
+      "invoices": "23",
+      "qty": 3580
+    },
+    "returns": {
+      "returns": "0",
+      "qty": 0
+    },
+    "po": {
+      "lines": [
+        {
+          "poId": 27,
+          "orderNo": "PO-WH-202602-0005",
+          "status": "COMPLETED",
+          "ordered": 2160,
+          "received": 2160
+        },
+        {
+          "poId": 86,
+          "orderNo": "PO-WH-202604-0032",
+          "status": "COMPLETED",
+          "ordered": 1920,
+          "received": 1920
+        }
+      ],
+      "ordered": 4080,
+      "received": 4080,
+      "issues": []
+    },
+    "ledgerPurchase": 4080,
+    "reconcile": {
+      "out": 0,
+      "in": 0,
+      "n": "0"
+    },
+    "restockEdits": {
+      "qty": 96,
+      "n": "1"
+    },
+    "calcStock": 500,
+    "issues": [
+      "SALE_TRACKING: sale_items=3580 vs ledger SALE=3676 (warehouse sales often ledger-only)",
+      "SALE_EDITS: 1 restock events (+96) from sale edits/deletes"
+    ],
+    "rootCause": "Physical count higher than system"
+  },
+  {
+    "row": 36,
+    "excelName": "whiskas poultry 1+ in gravy",
+    "excelQty": 1200,
+    "itemId": 1919,
+    "sku": "WH390",
+    "dbName": "Whiskas Pouch 1+ Poultry Feasts In Gravy 85g",
+    "dbQty": 752,
+    "diff": 448,
+    "ledger": {
+      "byType": {
+        "OPENING": {
+          "in": 1572,
+          "out": 0,
+          "n": "1"
+        },
+        "PURCHASE": {
+          "in": 1992,
+          "out": 0,
+          "n": "2"
+        },
+        "SALE": {
+          "in": 0,
+          "out": 1240,
+          "n": "7"
+        },
+        "ADJUSTMENT": {
+          "in": 0,
+          "out": 1572,
+          "n": "1"
+        }
+      },
+      "ledgerStock": 752
+    },
+    "saleItems": {
+      "invoices": "7",
+      "qty": 1240
+    },
+    "returns": {
+      "returns": "0",
+      "qty": 0
+    },
+    "po": {
+      "lines": [
+        {
+          "poId": 27,
+          "orderNo": "PO-WH-202602-0005",
+          "status": "COMPLETED",
+          "ordered": 456,
+          "received": 456
+        },
+        {
+          "poId": 86,
+          "orderNo": "PO-WH-202604-0032",
+          "status": "COMPLETED",
+          "ordered": 1536,
+          "received": 1536
+        },
+        {
+          "poId": 99,
+          "orderNo": "PO-WH-202605-0008",
+          "status": "PENDING",
+          "ordered": 720,
+          "received": 0
+        }
+      ],
+      "ordered": 2712,
+      "received": 1992,
+      "issues": [
+        "PO PO-WH-202605-0008: ordered 720, received 0 (pending 720)"
+      ]
+    },
+    "ledgerPurchase": 1992,
+    "reconcile": {
+      "out": 0,
+      "in": 0,
+      "n": "0"
+    },
+    "restockEdits": {
+      "qty": 0,
+      "n": "0"
+    },
+    "calcStock": 752,
+    "issues": [
+      "PO PO-WH-202605-0008: ordered 720, received 0 (pending 720)"
+    ],
+    "rootCause": "Physical count higher than system"
+  },
+  {
+    "row": 40,
+    "excelName": "whiskas mixed menu 1+ in jelly",
+    "excelQty": 1344,
+    "itemId": 1918,
+    "sku": "WH389",
+    "dbName": "Whiskas Pouch 1+ Mixed Menu In Jelly 85g",
+    "dbQty": 1728,
+    "diff": -384,
+    "ledger": {
+      "byType": {
+        "OPENING": {
+          "in": 1824,
+          "out": 0,
+          "n": "1"
+        },
+        "PURCHASE": {
+          "in": 2652,
+          "out": 0,
+          "n": "2"
+        },
+        "SALE": {
+          "in": 0,
+          "out": 924,
+          "n": "10"
+        },
+        "ADJUSTMENT": {
+          "in": 0,
+          "out": 1824,
+          "n": "1"
+        }
+      },
+      "ledgerStock": 1728
+    },
+    "saleItems": {
+      "invoices": "10",
+      "qty": 924
+    },
+    "returns": {
+      "returns": "0",
+      "qty": 0
+    },
+    "po": {
+      "lines": [
+        {
+          "poId": 27,
+          "orderNo": "PO-WH-202602-0005",
+          "status": "COMPLETED",
+          "ordered": 780,
+          "received": 780
+        },
+        {
+          "poId": 86,
+          "orderNo": "PO-WH-202604-0032",
+          "status": "COMPLETED",
+          "ordered": 1872,
+          "received": 1872
+        }
+      ],
+      "ordered": 2652,
+      "received": 2652,
+      "issues": []
+    },
+    "ledgerPurchase": 2652,
+    "reconcile": {
+      "out": 0,
+      "in": 0,
+      "n": "0"
+    },
+    "restockEdits": {
+      "qty": 0,
+      "n": "0"
+    },
+    "calcStock": 1728,
+    "issues": [],
+    "rootCause": "Count variance / sales vs Excel date"
+  },
+  {
+    "row": 30,
+    "excelName": "pawfect Adult 500 g",
+    "excelQty": 351,
+    "itemId": 1577,
+    "sku": "WH048",
+    "dbName": "Pawfect adult500g",
+    "dbQty": -7,
+    "diff": 358,
+    "ledger": {
+      "byType": {
+        "OPENING": {
+          "in": 103,
+          "out": 0,
+          "n": "1"
+        },
+        "PURCHASE": {
+          "in": 681,
+          "out": 0,
+          "n": "3"
+        },
+        "SALE": {
+          "in": 0,
+          "out": 728,
+          "n": "29"
+        },
+        "RESTOCK": {
+          "in": 40,
+          "out": 0,
+          "n": "2"
+        },
+        "ADJUSTMENT": {
+          "in": 0,
+          "out": 103,
+          "n": "1"
+        }
+      },
+      "ledgerStock": -7
+    },
+    "saleItems": {
+      "invoices": "27",
+      "qty": 688
+    },
+    "returns": {
+      "returns": "0",
+      "qty": 0
+    },
+    "po": {
+      "lines": [
+        {
+          "poId": 28,
+          "orderNo": "PO-WH-202602-0006",
+          "status": "COMPLETED",
+          "ordered": 81,
+          "received": 81
+        },
+        {
+          "poId": 46,
+          "orderNo": "PO-WH-202603-0004",
+          "status": "COMPLETED",
+          "ordered": 200,
+          "received": 200
+        },
+        {
+          "poId": 58,
+          "orderNo": "PO-WH-202604-0004",
+          "status": "COMPLETED",
+          "ordered": 400,
+          "received": 400
+        },
+        {
+          "poId": 102,
+          "orderNo": "PO-WH-202606-0003",
+          "status": "PENDING",
+          "ordered": 300,
+          "received": 0
+        }
+      ],
+      "ordered": 981,
+      "received": 681,
+      "issues": [
+        "PO PO-WH-202606-0003: ordered 300, received 0 (pending 300)"
+      ]
+    },
+    "ledgerPurchase": 681,
+    "reconcile": {
+      "out": 0,
+      "in": 0,
+      "n": "0"
+    },
+    "restockEdits": {
+      "qty": 40,
+      "n": "2"
+    },
+    "calcStock": -7,
+    "issues": [
+      "SALE_TRACKING: sale_items=688 vs ledger SALE=728 (warehouse sales often ledger-only)",
+      "PO PO-WH-202606-0003: ordered 300, received 0 (pending 300)",
+      "OVERSOLD: sold 728 vs PO+opening inflow 784 (negative stock allowed)",
+      "SALE_EDITS: 2 restock events (+40) from sale edits/deletes"
+    ],
+    "rootCause": "Oversold vs PO receipts"
+  },
+  {
+    "row": 41,
+    "excelName": "whiskas mixed menu 2-12 in jelly",
+    "excelQty": 1584,
+    "itemId": 1923,
+    "sku": "WH394",
+    "dbName": "Whiskas Pouch Kitten 2-12 Mixed Menu In Jelly 85g",
+    "dbQty": 1920,
+    "diff": -336,
+    "ledger": {
+      "byType": {
+        "OPENING": {
+          "in": 2016,
+          "out": 0,
+          "n": "1"
+        },
+        "PURCHASE": {
+          "in": 2760,
+          "out": 0,
+          "n": "2"
+        },
+        "SALE": {
+          "in": 0,
+          "out": 840,
+          "n": "8"
+        },
+        "ADJUSTMENT": {
+          "in": 0,
+          "out": 2016,
+          "n": "1"
+        }
+      },
+      "ledgerStock": 1920
+    },
+    "saleItems": {
+      "invoices": "8",
+      "qty": 840
+    },
+    "returns": {
+      "returns": "0",
+      "qty": 0
+    },
+    "po": {
+      "lines": [
+        {
+          "poId": 27,
+          "orderNo": "PO-WH-202602-0005",
+          "status": "COMPLETED",
+          "ordered": 360,
+          "received": 360
+        },
+        {
+          "poId": 88,
+          "orderNo": "PO-WH-202604-0034",
+          "status": "COMPLETED",
+          "ordered": 2400,
+          "received": 2400
+        }
+      ],
+      "ordered": 2760,
+      "received": 2760,
+      "issues": []
+    },
+    "ledgerPurchase": 2760,
+    "reconcile": {
+      "out": 0,
+      "in": 0,
+      "n": "0"
+    },
+    "restockEdits": {
+      "qty": 0,
+      "n": "0"
+    },
+    "calcStock": 1920,
+    "issues": [],
+    "rootCause": "Count variance / sales vs Excel date"
+  },
+  {
+    "row": 28,
+    "excelName": "pawfect Kitten 500 g",
+    "excelQty": 313,
+    "itemId": 1576,
+    "sku": "WH047",
+    "dbName": "Pawfect kittan 500g",
+    "dbQty": 21,
+    "diff": 292,
+    "ledger": {
+      "byType": {
+        "OPENING": {
+          "in": 131,
+          "out": 0,
+          "n": "1"
+        },
+        "PURCHASE": {
+          "in": 610,
+          "out": 0,
+          "n": "3"
+        },
+        "SALE": {
+          "in": 0,
+          "out": 669,
+          "n": "23"
+        },
+        "RESTOCK": {
+          "in": 80,
+          "out": 0,
+          "n": "4"
+        },
+        "ADJUSTMENT": {
+          "in": 0,
+          "out": 131,
+          "n": "1"
+        }
+      },
+      "ledgerStock": 21
+    },
+    "saleItems": {
+      "invoices": "19",
+      "qty": 589
+    },
+    "returns": {
+      "returns": "0",
+      "qty": 0
+    },
+    "po": {
+      "lines": [
+        {
+          "poId": 28,
+          "orderNo": "PO-WH-202602-0006",
+          "status": "COMPLETED",
+          "ordered": 10,
+          "received": 10
+        },
+        {
+          "poId": 46,
+          "orderNo": "PO-WH-202603-0004",
+          "status": "COMPLETED",
+          "ordered": 200,
+          "received": 200
+        },
+        {
+          "poId": 58,
+          "orderNo": "PO-WH-202604-0004",
+          "status": "COMPLETED",
+          "ordered": 400,
+          "received": 400
+        },
+        {
+          "poId": 102,
+          "orderNo": "PO-WH-202606-0003",
+          "status": "PENDING",
+          "ordered": 280,
+          "received": 0
+        }
+      ],
+      "ordered": 890,
+      "received": 610,
+      "issues": [
+        "PO PO-WH-202606-0003: ordered 280, received 0 (pending 280)"
+      ]
+    },
+    "ledgerPurchase": 610,
+    "reconcile": {
+      "out": 0,
+      "in": 0,
+      "n": "0"
+    },
+    "restockEdits": {
+      "qty": 80,
+      "n": "4"
+    },
+    "calcStock": 21,
+    "issues": [
+      "SALE_TRACKING: sale_items=589 vs ledger SALE=669 (warehouse sales often ledger-only)",
+      "PO PO-WH-202606-0003: ordered 280, received 0 (pending 280)",
+      "SALE_EDITS: 4 restock events (+80) from sale edits/deletes"
+    ],
+    "rootCause": "Physical count higher than system"
+  },
+  {
+    "row": 43,
+    "excelName": "whiskas chef choice 1+ in gravy",
+    "excelQty": 336,
+    "itemId": 1925,
+    "sku": "WH396",
+    "dbName": "Whiskas Pouch Tasty Mix Chefs Choice In Gravy 85g",
+    "dbQty": 48,
+    "diff": 288,
+    "ledger": {
+      "byType": {
+        "OPENING": {
+          "in": 432,
+          "out": 0,
+          "n": "1"
+        },
+        "PURCHASE": {
+          "in": 1680,
+          "out": 0,
+          "n": "1"
+        },
+        "SALE": {
+          "in": 0,
+          "out": 1656,
+          "n": "16"
+        },
+        "RESTOCK": {
+          "in": 24,
+          "out": 0,
+          "n": "2"
+        },
+        "ADJUSTMENT": {
+          "in": 0,
+          "out": 432,
+          "n": "1"
+        }
+      },
+      "ledgerStock": 48
+    },
+    "saleItems": {
+      "invoices": "14",
+      "qty": 1632
+    },
+    "returns": {
+      "returns": "0",
+      "qty": 0
+    },
+    "po": {
+      "lines": [
+        {
+          "poId": 27,
+          "orderNo": "PO-WH-202602-0005",
+          "status": "COMPLETED",
+          "ordered": 1680,
+          "received": 1680
+        },
+        {
+          "poId": 99,
+          "orderNo": "PO-WH-202605-0008",
+          "status": "PENDING",
+          "ordered": 384,
+          "received": 0
+        }
+      ],
+      "ordered": 2064,
+      "received": 1680,
+      "issues": [
+        "PO PO-WH-202605-0008: ordered 384, received 0 (pending 384)"
+      ]
+    },
+    "ledgerPurchase": 1680,
+    "reconcile": {
+      "out": 0,
+      "in": 0,
+      "n": "0"
+    },
+    "restockEdits": {
+      "qty": 24,
+      "n": "2"
+    },
+    "calcStock": 48,
+    "issues": [
+      "SALE_TRACKING: sale_items=1632 vs ledger SALE=1656 (warehouse sales often ledger-only)",
+      "PO PO-WH-202605-0008: ordered 384, received 0 (pending 384)",
+      "SALE_EDITS: 2 restock events (+24) from sale edits/deletes"
+    ],
+    "rootCause": "Physical count higher than system"
+  },
+  {
+    "row": 45,
+    "excelName": "whiskas ocean delight 1+ in jelly",
+    "excelQty": 48,
+    "itemId": 2782,
+    "sku": "WH-UNIT6WAREH-WOD1-0001",
+    "dbName": "Whiskas Ocean delight 1+ in jelly",
+    "dbQty": -240,
+    "diff": 288,
+    "ledger": {
+      "byType": {
+        "SALE": {
+          "in": 0,
+          "out": 240,
+          "n": "2"
+        }
+      },
+      "ledgerStock": -240
+    },
+    "saleItems": {
+      "invoices": "2",
+      "qty": 240
+    },
+    "returns": {
+      "returns": "0",
+      "qty": 0
+    },
+    "po": {
+      "lines": [
+        {
+          "poId": 99,
+          "orderNo": "PO-WH-202605-0008",
+          "status": "PENDING",
+          "ordered": 336,
+          "received": 0
+        }
+      ],
+      "ordered": 336,
+      "received": 0,
+      "issues": [
+        "PO PO-WH-202605-0008: ordered 336, received 0 (pending 336)"
+      ]
+    },
+    "ledgerPurchase": 0,
+    "reconcile": {
+      "out": 0,
+      "in": 0,
+      "n": "0"
+    },
+    "restockEdits": {
+      "qty": 0,
+      "n": "0"
+    },
+    "calcStock": -240,
+    "issues": [
+      "PO PO-WH-202605-0008: ordered 336, received 0 (pending 336)",
+      "OVERSOLD: sold 240 vs PO+opening inflow 0 (negative stock allowed)",
+      "SOLD_OUT_IN_SYSTEM: all receipts sold; Excel still shows 48 — missing PO or unposted stock",
+      "HIGH_SALES_AFTER_OPENING_WIPE: heavy sales + opening cleared May-25",
+      "LEGACY_SKU: ocean delight on duplicate WH-UNIT6 row, 0 PO, 240 sold",
+      "NO_PO_RECEIPTS: stock movement without PO receive (opening only or manual)"
+    ],
+    "rootCause": "Fully sold in system; Excel has stock"
+  },
+  {
+    "row": 35,
+    "excelName": "whiskas poultry 2-12 in jelly",
+    "excelQty": 1728,
+    "itemId": 2395,
+    "sku": "WHISKASPOUCH212POULTRYINJELLY85G-064161",
+    "dbName": "whiskas pouch 2-12 poultry in jelly 85g",
+    "dbQty": 1584,
+    "diff": 144,
+    "ledger": {
+      "byType": {
+        "OPENING": {
+          "in": 1824,
+          "out": 0,
+          "n": "1"
+        },
+        "PURCHASE": {
+          "in": 2400,
+          "out": 0,
+          "n": "1"
+        },
+        "SALE": {
+          "in": 0,
+          "out": 864,
+          "n": "9"
+        },
+        "RESTOCK": {
+          "in": 48,
+          "out": 0,
+          "n": "1"
+        },
+        "ADJUSTMENT": {
+          "in": 0,
+          "out": 1824,
+          "n": "1"
+        }
+      },
+      "ledgerStock": 1584
+    },
+    "saleItems": {
+      "invoices": "8",
+      "qty": 816
+    },
+    "returns": {
+      "returns": "0",
+      "qty": 0
+    },
+    "po": {
+      "lines": [
+        {
+          "poId": 88,
+          "orderNo": "PO-WH-202604-0034",
+          "status": "COMPLETED",
+          "ordered": 2400,
+          "received": 2400
+        },
+        {
+          "poId": 99,
+          "orderNo": "PO-WH-202605-0008",
+          "status": "PENDING",
+          "ordered": 144,
+          "received": 0
+        }
+      ],
+      "ordered": 2544,
+      "received": 2400,
+      "issues": [
+        "PO PO-WH-202605-0008: ordered 144, received 0 (pending 144)"
+      ]
+    },
+    "ledgerPurchase": 2400,
+    "reconcile": {
+      "out": 0,
+      "in": 0,
+      "n": "0"
+    },
+    "restockEdits": {
+      "qty": 48,
+      "n": "1"
+    },
+    "calcStock": 1584,
+    "issues": [
+      "SALE_TRACKING: sale_items=816 vs ledger SALE=864 (warehouse sales often ledger-only)",
+      "PO PO-WH-202605-0008: ordered 144, received 0 (pending 144)",
+      "SALE_EDITS: 1 restock events (+48) from sale edits/deletes"
+    ],
+    "rootCause": "Physical count higher than system"
+  },
+  {
+    "row": 1,
+    "excelName": "felicia urinary 2 kg",
+    "excelQty": 76,
+    "itemId": 1619,
+    "sku": "WH090",
+    "dbName": "Felicia Adult Uniary Care Streilised Chicken 2kg",
+    "dbQty": -42,
+    "diff": 118,
+    "ledger": {
+      "byType": {
+        "OPENING": {
+          "in": 0,
+          "out": 0,
+          "n": "1"
+        },
+        "PURCHASE": {
+          "in": 28,
+          "out": 0,
+          "n": "1"
+        },
+        "SALE": {
+          "in": 0,
+          "out": 84,
+          "n": "14"
+        },
+        "RESTOCK": {
+          "in": 8,
+          "out": 0,
+          "n": "1"
+        },
+        "ADJUSTMENT": {
+          "in": 6,
+          "out": 0,
+          "n": "1"
+        }
+      },
+      "ledgerStock": -42
+    },
+    "saleItems": {
+      "invoices": "13",
+      "qty": 76
+    },
+    "returns": {
+      "returns": "0",
+      "qty": 0
+    },
+    "po": {
+      "lines": [
+        {
+          "poId": 35,
+          "orderNo": "PO-WH-202602-0013",
+          "status": "COMPLETED",
+          "ordered": 28,
+          "received": 28
+        }
+      ],
+      "ordered": 28,
+      "received": 28,
+      "issues": []
+    },
+    "ledgerPurchase": 28,
+    "reconcile": {
+      "out": 0,
+      "in": 0,
+      "n": "0"
+    },
+    "restockEdits": {
+      "qty": 0,
+      "n": "0"
+    },
+    "calcStock": -42,
+    "issues": [
+      "SALE_TRACKING: sale_items=76 vs ledger SALE=84 (warehouse sales often ledger-only)",
+      "OVERSOLD: sold 84 vs PO+opening inflow 28 (negative stock allowed)",
+      "SOLD_OUT_IN_SYSTEM: all receipts sold; Excel still shows 76 — missing PO or unposted stock",
+      "HIGH_SALES_AFTER_OPENING_WIPE: heavy sales + opening cleared May-25"
+    ],
+    "rootCause": "Fully sold in system; Excel has stock"
+  },
+  {
+    "row": 18,
+    "excelName": "jungle pouch Kitten",
+    "excelQty": 24,
+    "itemId": 1636,
+    "sku": "WH107",
+    "dbName": "Jungle Pouch Kitten Chicken100 G",
+    "dbQty": 120,
+    "diff": -96,
+    "ledger": {
+      "byType": {
+        "OPENING": {
+          "in": 160,
+          "out": 0,
+          "n": "1"
+        },
+        "PURCHASE": {
+          "in": 432,
+          "out": 0,
+          "n": "1"
+        },
+        "SALE": {
+          "in": 0,
+          "out": 320,
+          "n": "9"
+        },
+        "RESTOCK": {
+          "in": 8,
+          "out": 0,
+          "n": "1"
+        },
+        "ADJUSTMENT": {
+          "in": 0,
+          "out": 160,
+          "n": "1"
+        }
+      },
+      "ledgerStock": 120
+    },
+    "saleItems": {
+      "invoices": "8",
+      "qty": 312
+    },
+    "returns": {
+      "returns": "0",
+      "qty": 0
+    },
+    "po": {
+      "lines": [
+        {
+          "poId": 24,
+          "orderNo": "PO-WH-202602-0002",
+          "status": "COMPLETED",
+          "ordered": 432,
+          "received": 432
+        }
+      ],
+      "ordered": 432,
+      "received": 432,
+      "issues": []
+    },
+    "ledgerPurchase": 432,
+    "reconcile": {
+      "out": 0,
+      "in": 0,
+      "n": "0"
+    },
+    "restockEdits": {
+      "qty": 0,
+      "n": "0"
+    },
+    "calcStock": 120,
+    "issues": [
+      "SALE_TRACKING: sale_items=312 vs ledger SALE=320 (warehouse sales often ledger-only)"
+    ],
+    "rootCause": "Count variance / sales vs Excel date"
+  },
+  {
+    "row": 22,
+    "excelName": "jungle creamy treat chicken",
+    "excelQty": 0,
+    "itemId": 1638,
+    "sku": "WH109",
+    "dbName": "Jungle Creamy Treat Chichen",
+    "dbQty": 96,
+    "diff": -96,
+    "ledger": {
+      "byType": {
+        "OPENING": {
+          "in": 492,
+          "out": 0,
+          "n": "1"
+        },
+        "PURCHASE": {
+          "in": 1152,
+          "out": 0,
+          "n": "1"
+        },
+        "SALE": {
+          "in": 0,
+          "out": 1056,
+          "n": "24"
+        },
+        "ADJUSTMENT": {
+          "in": 0,
+          "out": 492,
+          "n": "1"
+        }
+      },
+      "ledgerStock": 96
+    },
+    "saleItems": {
+      "invoices": "24",
+      "qty": 1056
+    },
+    "returns": {
+      "returns": "0",
+      "qty": 0
+    },
+    "po": {
+      "lines": [
+        {
+          "poId": 24,
+          "orderNo": "PO-WH-202602-0002",
+          "status": "COMPLETED",
+          "ordered": 1152,
+          "received": 1152
+        }
+      ],
+      "ordered": 1152,
+      "received": 1152,
+      "issues": []
+    },
+    "ledgerPurchase": 1152,
+    "reconcile": {
+      "out": 0,
+      "in": 0,
+      "n": "0"
+    },
+    "restockEdits": {
+      "qty": 0,
+      "n": "0"
+    },
+    "calcStock": 96,
+    "issues": [],
+    "rootCause": "Excel zero but system has stock"
+  },
+  {
+    "row": 27,
+    "excelName": "pawfect Kitten 1 kg",
+    "excelQty": 550,
+    "itemId": 1574,
+    "sku": "WH045",
+    "dbName": "Pawfect Kitten 1 kg",
+    "dbQty": 640,
+    "diff": -90,
+    "ledger": {
+      "byType": {
+        "OPENING": {
+          "in": 1260,
+          "out": 0,
+          "n": "1"
+        },
+        "PURCHASE": {
+          "in": 2840,
+          "out": 0,
+          "n": "5"
+        },
+        "SALE": {
+          "in": 0,
+          "out": 2310,
+          "n": "61"
+        },
+        "RESTOCK": {
+          "in": 110,
+          "out": 0,
+          "n": "9"
+        },
+        "ADJUSTMENT": {
+          "in": 0,
+          "out": 1260,
+          "n": "1"
+        }
+      },
+      "ledgerStock": 640
+    },
+    "saleItems": {
+      "invoices": "52",
+      "qty": 2200
+    },
+    "returns": {
+      "returns": "0",
+      "qty": 0
+    },
+    "po": {
+      "lines": [
+        {
+          "poId": 28,
+          "orderNo": "PO-WH-202602-0006",
+          "status": "COMPLETED",
+          "ordered": 940,
+          "received": 940
+        },
+        {
+          "poId": 46,
+          "orderNo": "PO-WH-202603-0004",
+          "status": "COMPLETED",
+          "ordered": 400,
+          "received": 400
+        },
+        {
+          "poId": 56,
+          "orderNo": "PO-WH-202604-0002",
+          "status": "COMPLETED",
+          "ordered": 400,
+          "received": 400
+        },
+        {
+          "poId": 58,
+          "orderNo": "PO-WH-202604-0004",
+          "status": "COMPLETED",
+          "ordered": 1050,
+          "received": 1050
+        },
+        {
+          "poId": 77,
+          "orderNo": "PO-WH-202604-0023",
+          "status": "COMPLETED",
+          "ordered": 50,
+          "received": 50
+        },
+        {
+          "poId": 102,
+          "orderNo": "PO-WH-202606-0003",
+          "status": "PENDING",
+          "ordered": 400,
+          "received": 0
+        }
+      ],
+      "ordered": 3240,
+      "received": 2840,
+      "issues": [
+        "PO PO-WH-202606-0003: ordered 400, received 0 (pending 400)"
+      ]
+    },
+    "ledgerPurchase": 2840,
+    "reconcile": {
+      "out": 0,
+      "in": 0,
+      "n": "0"
+    },
+    "restockEdits": {
+      "qty": 110,
+      "n": "9"
+    },
+    "calcStock": 640,
+    "issues": [
+      "SALE_TRACKING: sale_items=2200 vs ledger SALE=2310 (warehouse sales often ledger-only)",
+      "PO PO-WH-202606-0003: ordered 400, received 0 (pending 400)",
+      "SALE_EDITS: 9 restock events (+110) from sale edits/deletes"
+    ],
+    "rootCause": "Count variance / sales vs Excel date"
+  },
+  {
+    "row": 15,
+    "excelName": "jungle kitten 1.5 kg",
+    "excelQty": 0,
+    "itemId": 1628,
+    "sku": "WH099",
+    "dbName": "Jungle kitten Dry Chicken 1.5kg",
+    "dbQty": 88,
+    "diff": -88,
+    "ledger": {
+      "byType": {
+        "OPENING": {
+          "in": 160,
+          "out": 0,
+          "n": "1"
+        },
+        "PURCHASE": {
+          "in": 408,
+          "out": 0,
+          "n": "3"
+        },
+        "SALE": {
+          "in": 0,
+          "out": 320,
+          "n": "23"
+        },
+        "ADJUSTMENT": {
+          "in": 0,
+          "out": 160,
+          "n": "1"
+        }
+      },
+      "ledgerStock": 88
+    },
+    "saleItems": {
+      "invoices": "23",
+      "qty": 320
+    },
+    "returns": {
+      "returns": "0",
+      "qty": 0
+    },
+    "po": {
+      "lines": [
+        {
+          "poId": 24,
+          "orderNo": "PO-WH-202602-0002",
+          "status": "COMPLETED",
+          "ordered": 128,
+          "received": 128
+        },
+        {
+          "poId": 35,
+          "orderNo": "PO-WH-202602-0013",
+          "status": "COMPLETED",
+          "ordered": 160,
+          "received": 160
+        },
+        {
+          "poId": 89,
+          "orderNo": "PO-WH-202604-0035",
+          "status": "COMPLETED",
+          "ordered": 120,
+          "received": 120
+        }
+      ],
+      "ordered": 408,
+      "received": 408,
+      "issues": []
+    },
+    "ledgerPurchase": 408,
+    "reconcile": {
+      "out": 0,
+      "in": 0,
+      "n": "0"
+    },
+    "restockEdits": {
+      "qty": 0,
+      "n": "0"
+    },
+    "calcStock": 88,
+    "issues": [],
+    "rootCause": "Excel zero but system has stock"
+  },
+  {
+    "row": 17,
+    "excelName": "jungle Adult 1.5 kg",
+    "excelQty": 0,
+    "itemId": 1633,
+    "sku": "WH104",
+    "dbName": "Jungle Adult Dry Chicken Fish 1.5kg",
+    "dbQty": 82,
+    "diff": -82,
+    "ledger": {
+      "byType": {
+        "OPENING": {
+          "in": 170,
+          "out": 0,
+          "n": "1"
+        },
+        "PURCHASE": {
+          "in": 420,
+          "out": 0,
+          "n": "3"
+        },
+        "SALE": {
+          "in": 0,
+          "out": 354,
+          "n": "25"
+        },
+        "RESTOCK": {
+          "in": 16,
+          "out": 0,
+          "n": "2"
+        },
+        "ADJUSTMENT": {
+          "in": 0,
+          "out": 170,
+          "n": "1"
+        }
+      },
+      "ledgerStock": 82
+    },
+    "saleItems": {
+      "invoices": "23",
+      "qty": 338
+    },
+    "returns": {
+      "returns": "0",
+      "qty": 0
+    },
+    "po": {
+      "lines": [
+        {
+          "poId": 24,
+          "orderNo": "PO-WH-202602-0002",
+          "status": "COMPLETED",
+          "ordered": 128,
+          "received": 128
+        },
+        {
+          "poId": 35,
+          "orderNo": "PO-WH-202602-0013",
+          "status": "COMPLETED",
+          "ordered": 160,
+          "received": 160
+        },
+        {
+          "poId": 89,
+          "orderNo": "PO-WH-202604-0035",
+          "status": "COMPLETED",
+          "ordered": 132,
+          "received": 132
+        }
+      ],
+      "ordered": 420,
+      "received": 420,
+      "issues": []
+    },
+    "ledgerPurchase": 420,
+    "reconcile": {
+      "out": 0,
+      "in": 0,
+      "n": "0"
+    },
+    "restockEdits": {
+      "qty": 16,
+      "n": "2"
+    },
+    "calcStock": 82,
+    "issues": [
+      "SALE_TRACKING: sale_items=338 vs ledger SALE=354 (warehouse sales often ledger-only)",
+      "SALE_EDITS: 2 restock events (+16) from sale edits/deletes"
+    ],
+    "rootCause": "Excel zero but system has stock"
+  },
+  {
+    "row": 19,
+    "excelName": "jungle pouch Adult",
+    "excelQty": 168,
+    "itemId": 1637,
+    "sku": "WH108",
+    "dbName": "Jungle Pouch Adult Chicken 100 G",
+    "dbQty": 234,
+    "diff": -66,
+    "ledger": {
+      "byType": {
+        "OPENING": {
+          "in": 234,
+          "out": 0,
+          "n": "1"
+        },
+        "PURCHASE": {
+          "in": 456,
+          "out": 0,
+          "n": "1"
+        },
+        "SALE": {
+          "in": 0,
+          "out": 222,
+          "n": "7"
+        },
+        "ADJUSTMENT": {
+          "in": 0,
+          "out": 234,
+          "n": "1"
+        }
+      },
+      "ledgerStock": 234
+    },
+    "saleItems": {
+      "invoices": "7",
+      "qty": 222
+    },
+    "returns": {
+      "returns": "0",
+      "qty": 0
+    },
+    "po": {
+      "lines": [
+        {
+          "poId": 24,
+          "orderNo": "PO-WH-202602-0002",
+          "status": "COMPLETED",
+          "ordered": 456,
+          "received": 456
+        }
+      ],
+      "ordered": 456,
+      "received": 456,
+      "issues": []
+    },
+    "ledgerPurchase": 456,
+    "reconcile": {
+      "out": 0,
+      "in": 0,
+      "n": "0"
+    },
+    "restockEdits": {
+      "qty": 0,
+      "n": "0"
+    },
+    "calcStock": 234,
+    "issues": [],
+    "rootCause": "Count variance / sales vs Excel date"
+  },
+  {
+    "row": 23,
+    "excelName": "jungle creamy treat Salmon",
+    "excelQty": 0,
+    "itemId": 1640,
+    "sku": "WH111",
+    "dbName": "Jungle Creamy Treat Salmon",
+    "dbQty": -50,
+    "diff": 50,
+    "ledger": {
+      "byType": {
+        "OPENING": {
+          "in": 250,
+          "out": 0,
+          "n": "1"
+        },
+        "PURCHASE": {
+          "in": 576,
+          "out": 0,
+          "n": "1"
+        },
+        "SALE": {
+          "in": 0,
+          "out": 626,
+          "n": "18"
+        },
+        "ADJUSTMENT": {
+          "in": 0,
+          "out": 250,
+          "n": "1"
+        }
+      },
+      "ledgerStock": -50
+    },
+    "saleItems": {
+      "invoices": "18",
+      "qty": 626
+    },
+    "returns": {
+      "returns": "0",
+      "qty": 0
+    },
+    "po": {
+      "lines": [
+        {
+          "poId": 24,
+          "orderNo": "PO-WH-202602-0002",
+          "status": "COMPLETED",
+          "ordered": 576,
+          "received": 576
+        }
+      ],
+      "ordered": 576,
+      "received": 576,
+      "issues": []
+    },
+    "ledgerPurchase": 576,
+    "reconcile": {
+      "out": 0,
+      "in": 0,
+      "n": "0"
+    },
+    "restockEdits": {
+      "qty": 0,
+      "n": "0"
+    },
+    "calcStock": -50,
+    "issues": [
+      "OVERSOLD: sold 626 vs PO+opening inflow 826 (negative stock allowed)"
+    ],
+    "rootCause": "Oversold vs PO receipts"
+  },
+  {
+    "row": 33,
+    "excelName": "puppy paw 3 kg",
+    "excelQty": 26,
+    "itemId": 1578,
+    "sku": "WH049",
+    "dbName": "Puppy Paw dog food 3 KG",
+    "dbQty": -21,
+    "diff": 47,
+    "ledger": {
+      "byType": {
+        "OPENING": {
+          "in": 15,
+          "out": 0,
+          "n": "1"
+        },
+        "PURCHASE": {
+          "in": 252,
+          "out": 0,
+          "n": "3"
+        },
+        "SALE": {
+          "in": 0,
+          "out": 284,
+          "n": "32"
+        },
+        "RESTOCK": {
+          "in": 11,
+          "out": 0,
+          "n": "4"
+        },
+        "ADJUSTMENT": {
+          "in": 0,
+          "out": 15,
+          "n": "1"
+        }
+      },
+      "ledgerStock": -21
+    },
+    "saleItems": {
+      "invoices": "28",
+      "qty": 273
+    },
+    "returns": {
+      "returns": "0",
+      "qty": 0
+    },
+    "po": {
+      "lines": [
+        {
+          "poId": 34,
+          "orderNo": "PO-WH-202602-0012",
+          "status": "COMPLETED",
+          "ordered": 12,
+          "received": 12
+        },
+        {
+          "poId": 46,
+          "orderNo": "PO-WH-202603-0004",
+          "status": "COMPLETED",
+          "ordered": 40,
+          "received": 40
+        },
+        {
+          "poId": 58,
+          "orderNo": "PO-WH-202604-0004",
+          "status": "COMPLETED",
+          "ordered": 200,
+          "received": 200
+        },
+        {
+          "poId": 102,
+          "orderNo": "PO-WH-202606-0003",
+          "status": "PENDING",
+          "ordered": 40,
+          "received": 0
+        }
+      ],
+      "ordered": 292,
+      "received": 252,
+      "issues": [
+        "PO PO-WH-202606-0003: ordered 40, received 0 (pending 40)"
+      ]
+    },
+    "ledgerPurchase": 252,
+    "reconcile": {
+      "out": 0,
+      "in": 0,
+      "n": "0"
+    },
+    "restockEdits": {
+      "qty": 11,
+      "n": "4"
+    },
+    "calcStock": -21,
+    "issues": [
+      "SALE_TRACKING: sale_items=273 vs ledger SALE=284 (warehouse sales often ledger-only)",
+      "PO PO-WH-202606-0003: ordered 40, received 0 (pending 40)",
+      "OVERSOLD: sold 284 vs PO+opening inflow 267 (negative stock allowed)",
+      "SOLD_OUT_IN_SYSTEM: all receipts sold; Excel still shows 26 — missing PO or unposted stock",
+      "SALE_EDITS: 4 restock events (+11) from sale edits/deletes"
+    ],
+    "rootCause": "Fully sold in system; Excel has stock"
+  },
+  {
+    "row": 20,
+    "excelName": "jungle pate kitten",
+    "excelQty": 64,
+    "itemId": 1644,
+    "sku": "WH115",
+    "dbName": "Jungle Pate kitten Chicken+Milk 100g",
+    "dbQty": 96,
+    "diff": -32,
+    "ledger": {
+      "byType": {
+        "OPENING": {
+          "in": 224,
+          "out": 0,
+          "n": "1"
+        },
+        "PURCHASE": {
+          "in": 480,
+          "out": 0,
+          "n": "1"
+        },
+        "SALE": {
+          "in": 0,
+          "out": 384,
+          "n": "11"
+        },
+        "ADJUSTMENT": {
+          "in": 0,
+          "out": 224,
+          "n": "1"
+        }
+      },
+      "ledgerStock": 96
+    },
+    "saleItems": {
+      "invoices": "11",
+      "qty": 384
+    },
+    "returns": {
+      "returns": "0",
+      "qty": 0
+    },
+    "po": {
+      "lines": [
+        {
+          "poId": 24,
+          "orderNo": "PO-WH-202602-0002",
+          "status": "COMPLETED",
+          "ordered": 480,
+          "received": 480
+        }
+      ],
+      "ordered": 480,
+      "received": 480,
+      "issues": []
+    },
+    "ledgerPurchase": 480,
+    "reconcile": {
+      "out": 0,
+      "in": 0,
+      "n": "0"
+    },
+    "restockEdits": {
+      "qty": 0,
+      "n": "0"
+    },
+    "calcStock": 96,
+    "issues": [],
+    "rootCause": "Count variance / sales vs Excel date"
+  },
+  {
+    "row": 21,
+    "excelName": "jungle pate Adult",
+    "excelQty": 64,
+    "itemId": 1643,
+    "sku": "WH114",
+    "dbName": "Jungle Pate Adult 1+ Chicken 100g",
+    "dbQty": 96,
+    "diff": -32,
+    "ledger": {
+      "byType": {
+        "OPENING": {
+          "in": 192,
+          "out": 0,
+          "n": "1"
+        },
+        "PURCHASE": {
+          "in": 480,
+          "out": 0,
+          "n": "1"
+        },
+        "SALE": {
+          "in": 0,
+          "out": 384,
+          "n": "10"
+        },
+        "ADJUSTMENT": {
+          "in": 0,
+          "out": 192,
+          "n": "1"
+        }
+      },
+      "ledgerStock": 96
+    },
+    "saleItems": {
+      "invoices": "10",
+      "qty": 384
+    },
+    "returns": {
+      "returns": "0",
+      "qty": 0
+    },
+    "po": {
+      "lines": [
+        {
+          "poId": 24,
+          "orderNo": "PO-WH-202602-0002",
+          "status": "COMPLETED",
+          "ordered": 480,
+          "received": 480
+        }
+      ],
+      "ordered": 480,
+      "received": 480,
+      "issues": []
+    },
+    "ledgerPurchase": 480,
+    "reconcile": {
+      "out": 0,
+      "in": 0,
+      "n": "0"
+    },
+    "restockEdits": {
+      "qty": 0,
+      "n": "0"
+    },
+    "calcStock": 96,
+    "issues": [],
+    "rootCause": "Count variance / sales vs Excel date"
+  },
+  {
+    "row": 2,
+    "excelName": "felicia digest 2 kg",
+    "excelQty": 124,
+    "itemId": 1615,
+    "sku": "WH086",
+    "dbName": "Felicia Adult Digest Care Chicken 2kg",
+    "dbQty": 152,
+    "diff": -28,
+    "ledger": {
+      "byType": {
+        "OPENING": {
+          "in": 196,
+          "out": 0,
+          "n": "1"
+        },
+        "PURCHASE": {
+          "in": 268,
+          "out": 0,
+          "n": "3"
+        },
+        "SALE": {
+          "in": 0,
+          "out": 116,
+          "n": "14"
+        },
+        "ADJUSTMENT": {
+          "in": 0,
+          "out": 196,
+          "n": "1"
+        }
+      },
+      "ledgerStock": 152
+    },
+    "saleItems": {
+      "invoices": "14",
+      "qty": 116
+    },
+    "returns": {
+      "returns": "0",
+      "qty": 0
+    },
+    "po": {
+      "lines": [
+        {
+          "poId": 25,
+          "orderNo": "PO-WH-202602-0003",
+          "status": "COMPLETED",
+          "ordered": 28,
+          "received": 28
+        },
+        {
+          "poId": 84,
+          "orderNo": "PO-WH-202604-0030",
+          "status": "COMPLETED",
+          "ordered": 40,
+          "received": 40
+        },
+        {
+          "poId": 90,
+          "orderNo": "PO-WH-202604-0036",
+          "status": "COMPLETED",
+          "ordered": 200,
+          "received": 200
+        }
+      ],
+      "ordered": 268,
+      "received": 268,
+      "issues": []
+    },
+    "ledgerPurchase": 268,
+    "reconcile": {
+      "out": 0,
+      "in": 0,
+      "n": "0"
+    },
+    "restockEdits": {
+      "qty": 0,
+      "n": "0"
+    },
+    "calcStock": 152,
+    "issues": [],
+    "rootCause": "Count variance / sales vs Excel date"
+  },
+  {
+    "row": 13,
+    "excelName": "felicia pouch Adult Chicken 85g",
+    "excelQty": 120,
+    "itemId": 1601,
+    "sku": "WH072",
+    "dbName": "Felicia Pouch Adult Chicken 85g",
+    "dbQty": 146,
+    "diff": -26,
+    "ledger": {
+      "byType": {
+        "OPENING": {
+          "in": 230,
+          "out": 0,
+          "n": "1"
+        },
+        "PURCHASE": {
+          "in": 324,
+          "out": 0,
+          "n": "1"
+        },
+        "SALE": {
+          "in": 0,
+          "out": 190,
+          "n": "13"
+        },
+        "RESTOCK": {
+          "in": 12,
+          "out": 0,
+          "n": "1"
+        },
+        "ADJUSTMENT": {
+          "in": 0,
+          "out": 230,
+          "n": "1"
+        }
+      },
+      "ledgerStock": 146
+    },
+    "saleItems": {
+      "invoices": "12",
+      "qty": 178
+    },
+    "returns": {
+      "returns": "0",
+      "qty": 0
+    },
+    "po": {
+      "lines": [
+        {
+          "poId": 25,
+          "orderNo": "PO-WH-202602-0003",
+          "status": "COMPLETED",
+          "ordered": 324,
+          "received": 324
+        }
+      ],
+      "ordered": 324,
+      "received": 324,
+      "issues": []
+    },
+    "ledgerPurchase": 324,
+    "reconcile": {
+      "out": 0,
+      "in": 0,
+      "n": "0"
+    },
+    "restockEdits": {
+      "qty": 12,
+      "n": "1"
+    },
+    "calcStock": 146,
+    "issues": [
+      "SALE_TRACKING: sale_items=178 vs ledger SALE=190 (warehouse sales often ledger-only)",
+      "SALE_EDITS: 1 restock events (+12) from sale edits/deletes"
+    ],
+    "rootCause": "Count variance / sales vs Excel date"
+  },
+  {
+    "row": 24,
+    "excelName": "jungle creamy treat Tuna",
+    "excelQty": 0,
+    "itemId": 1639,
+    "sku": "WH110",
+    "dbName": "Jungle Creamy Treat Tuna",
+    "dbQty": 12,
+    "diff": -12,
+    "ledger": {
+      "byType": {
+        "OPENING": {
+          "in": 252,
+          "out": 0,
+          "n": "1"
+        },
+        "PURCHASE": {
+          "in": 600,
+          "out": 0,
+          "n": "2"
+        },
+        "SALE": {
+          "in": 0,
+          "out": 588,
+          "n": "15"
+        },
+        "ADJUSTMENT": {
+          "in": 0,
+          "out": 252,
+          "n": "1"
+        }
+      },
+      "ledgerStock": 12
+    },
+    "saleItems": {
+      "invoices": "15",
+      "qty": 588
+    },
+    "returns": {
+      "returns": "0",
+      "qty": 0
+    },
+    "po": {
+      "lines": [
+        {
+          "poId": 24,
+          "orderNo": "PO-WH-202602-0002",
+          "status": "COMPLETED",
+          "ordered": 576,
+          "received": 576
+        },
+        {
+          "poId": 31,
+          "orderNo": "PO-WH-202602-0009",
+          "status": "COMPLETED",
+          "ordered": 24,
+          "received": 24
+        }
+      ],
+      "ordered": 600,
+      "received": 600,
+      "issues": []
+    },
+    "ledgerPurchase": 600,
+    "reconcile": {
+      "out": 0,
+      "in": 0,
+      "n": "0"
+    },
+    "restockEdits": {
+      "qty": 0,
+      "n": "0"
+    },
+    "calcStock": 12,
+    "issues": [],
+    "rootCause": "Excel zero but system has stock"
+  },
+  {
+    "row": 34,
+    "excelName": "big paw high energy 20 kg",
+    "excelQty": 7,
+    "itemId": 1580,
+    "sku": "WH051",
+    "dbName": "Big paw high energy dog food  20kg",
+    "dbQty": -3,
+    "diff": 10,
+    "ledger": {
+      "byType": {
+        "OPENING": {
+          "in": 0,
+          "out": 0,
+          "n": "1"
+        },
+        "PURCHASE": {
+          "in": 7,
+          "out": 0,
+          "n": "2"
+        },
+        "SALE": {
+          "in": 0,
+          "out": 11,
+          "n": "9"
+        },
+        "RESTOCK": {
+          "in": 1,
+          "out": 0,
+          "n": "1"
+        }
+      },
+      "ledgerStock": -3
+    },
+    "saleItems": {
+      "invoices": "8",
+      "qty": 10
+    },
+    "returns": {
+      "returns": "0",
+      "qty": 0
+    },
+    "po": {
+      "lines": [
+        {
+          "poId": 34,
+          "orderNo": "PO-WH-202602-0012",
+          "status": "COMPLETED",
+          "ordered": 2,
+          "received": 2
+        },
+        {
+          "poId": 46,
+          "orderNo": "PO-WH-202603-0004",
+          "status": "COMPLETED",
+          "ordered": 5,
+          "received": 5
+        },
+        {
+          "poId": 102,
+          "orderNo": "PO-WH-202606-0003",
+          "status": "PENDING",
+          "ordered": 10,
+          "received": 0
+        }
+      ],
+      "ordered": 17,
+      "received": 7,
+      "issues": [
+        "PO PO-WH-202606-0003: ordered 10, received 0 (pending 10)"
+      ]
+    },
+    "ledgerPurchase": 7,
+    "reconcile": {
+      "out": 0,
+      "in": 0,
+      "n": "0"
+    },
+    "restockEdits": {
+      "qty": 1,
+      "n": "1"
+    },
+    "calcStock": -3,
+    "issues": [
+      "PO PO-WH-202606-0003: ordered 10, received 0 (pending 10)",
+      "OVERSOLD: sold 11 vs PO+opening inflow 7 (negative stock allowed)",
+      "SOLD_OUT_IN_SYSTEM: all receipts sold; Excel still shows 7 — missing PO or unposted stock",
+      "SALE_EDITS: 1 restock events (+1) from sale edits/deletes"
+    ],
+    "rootCause": "Fully sold in system; Excel has stock"
+  },
+  {
+    "row": 32,
+    "excelName": "big paw 3 kg",
+    "excelQty": 22,
+    "itemId": 1579,
+    "sku": "WH050",
+    "dbName": "Big Paw Adult dog food 3kg",
+    "dbQty": 30,
+    "diff": -8,
+    "ledger": {
+      "byType": {
+        "OPENING": {
+          "in": 56,
+          "out": 0,
+          "n": "1"
+        },
+        "PURCHASE": {
+          "in": 460,
+          "out": 0,
+          "n": "3"
+        },
+        "SALE": {
+          "in": 0,
+          "out": 447,
+          "n": "28"
+        },
+        "RESTOCK": {
+          "in": 17,
+          "out": 0,
+          "n": "5"
+        },
+        "ADJUSTMENT": {
+          "in": 0,
+          "out": 56,
+          "n": "1"
+        }
+      },
+      "ledgerStock": 30
+    },
+    "saleItems": {
+      "invoices": "23",
+      "qty": 430
+    },
+    "returns": {
+      "returns": "0",
+      "qty": 0
+    },
+    "po": {
+      "lines": [
+        {
+          "poId": 34,
+          "orderNo": "PO-WH-202602-0012",
+          "status": "COMPLETED",
+          "ordered": 20,
+          "received": 20
+        },
+        {
+          "poId": 46,
+          "orderNo": "PO-WH-202603-0004",
+          "status": "COMPLETED",
+          "ordered": 40,
+          "received": 40
+        },
+        {
+          "poId": 58,
+          "orderNo": "PO-WH-202604-0004",
+          "status": "COMPLETED",
+          "ordered": 400,
+          "received": 400
+        }
+      ],
+      "ordered": 460,
+      "received": 460,
+      "issues": []
+    },
+    "ledgerPurchase": 460,
+    "reconcile": {
+      "out": 0,
+      "in": 0,
+      "n": "0"
+    },
+    "restockEdits": {
+      "qty": 17,
+      "n": "5"
+    },
+    "calcStock": 30,
+    "issues": [
+      "SALE_TRACKING: sale_items=430 vs ledger SALE=447 (warehouse sales often ledger-only)",
+      "SALE_EDITS: 5 restock events (+17) from sale edits/deletes"
+    ],
+    "rootCause": "Count variance / sales vs Excel date"
+  },
+  {
+    "row": 6,
+    "excelName": "felicia kitten chicken 2 kg",
+    "excelQty": 180,
+    "itemId": 1607,
+    "sku": "WH078",
+    "dbName": "Felicia Kitten Dry Chicken 1-12 2kg",
+    "dbQty": 186,
+    "diff": -6,
+    "ledger": {
+      "byType": {
+        "OPENING": {
+          "in": 200,
+          "out": 0,
+          "n": "1"
+        },
+        "PURCHASE": {
+          "in": 280,
+          "out": 0,
+          "n": "3"
+        },
+        "SALE": {
+          "in": 0,
+          "out": 118,
+          "n": "18"
+        },
+        "RESTOCK": {
+          "in": 24,
+          "out": 0,
+          "n": "1"
+        },
+        "ADJUSTMENT": {
+          "in": 0,
+          "out": 200,
+          "n": "1"
+        }
+      },
+      "ledgerStock": 186
+    },
+    "saleItems": {
+      "invoices": "17",
+      "qty": 94
+    },
+    "returns": {
+      "returns": "0",
+      "qty": 0
+    },
+    "po": {
+      "lines": [
+        {
+          "poId": 25,
+          "orderNo": "PO-WH-202602-0003",
+          "status": "COMPLETED",
+          "ordered": 32,
+          "received": 32
+        },
+        {
+          "poId": 35,
+          "orderNo": "PO-WH-202602-0013",
+          "status": "COMPLETED",
+          "ordered": 4,
+          "received": 4
+        },
+        {
+          "poId": 89,
+          "orderNo": "PO-WH-202604-0035",
+          "status": "COMPLETED",
+          "ordered": 244,
+          "received": 244
+        }
+      ],
+      "ordered": 280,
+      "received": 280,
+      "issues": []
+    },
+    "ledgerPurchase": 280,
+    "reconcile": {
+      "out": 0,
+      "in": 0,
+      "n": "0"
+    },
+    "restockEdits": {
+      "qty": 0,
+      "n": "0"
+    },
+    "calcStock": 186,
+    "issues": [
+      "SALE_TRACKING: sale_items=94 vs ledger SALE=118 (warehouse sales often ledger-only)"
+    ],
+    "rootCause": "Count variance / sales vs Excel date"
+  },
+  {
+    "row": 16,
+    "excelName": "jungle Adult 15 kg",
+    "excelQty": 0,
+    "itemId": 1634,
+    "sku": "WH105",
+    "dbName": "Jungle Adult Dry Chicken Fish 15kg",
+    "dbQty": 6,
+    "diff": -6,
+    "ledger": {
+      "byType": {
+        "OPENING": {
+          "in": 12,
+          "out": 0,
+          "n": "1"
+        },
+        "PURCHASE": {
+          "in": 34,
+          "out": 0,
+          "n": "2"
+        },
+        "SALE": {
+          "in": 0,
+          "out": 35,
+          "n": "16"
+        },
+        "RESTOCK": {
+          "in": 7,
+          "out": 0,
+          "n": "4"
+        },
+        "ADJUSTMENT": {
+          "in": 0,
+          "out": 12,
+          "n": "1"
+        }
+      },
+      "ledgerStock": 6
+    },
+    "saleItems": {
+      "invoices": "12",
+      "qty": 28
+    },
+    "returns": {
+      "returns": "0",
+      "qty": 0
+    },
+    "po": {
+      "lines": [
+        {
+          "poId": 35,
+          "orderNo": "PO-WH-202602-0013",
+          "status": "COMPLETED",
+          "ordered": 14,
+          "received": 14
+        },
+        {
+          "poId": 89,
+          "orderNo": "PO-WH-202604-0035",
+          "status": "COMPLETED",
+          "ordered": 20,
+          "received": 20
+        }
+      ],
+      "ordered": 34,
+      "received": 34,
+      "issues": []
+    },
+    "ledgerPurchase": 34,
+    "reconcile": {
+      "out": 0,
+      "in": 0,
+      "n": "0"
+    },
+    "restockEdits": {
+      "qty": 5,
+      "n": "3"
+    },
+    "calcStock": 6,
+    "issues": [
+      "SALE_TRACKING: sale_items=28 vs ledger SALE=35 (warehouse sales often ledger-only)",
+      "SALE_EDITS: 3 restock events (+5) from sale edits/deletes"
+    ],
+    "rootCause": "Excel zero but system has stock"
+  },
+  {
+    "row": 31,
+    "excelName": "pawfect Adult 10 kg",
+    "excelQty": 8,
+    "itemId": 2312,
+    "sku": "PAWFECTADULT10KG-312512",
+    "dbName": "Pawfect Adult 10KG",
+    "dbQty": 3,
+    "diff": 5,
+    "ledger": {
+      "byType": {
+        "OPENING": {
+          "in": 9,
+          "out": 0,
+          "n": "1"
+        },
+        "PURCHASE": {
+          "in": 20,
+          "out": 0,
+          "n": "1"
+        },
+        "SALE": {
+          "in": 0,
+          "out": 26,
+          "n": "10"
+        },
+        "RESTOCK": {
+          "in": 9,
+          "out": 0,
+          "n": "4"
+        },
+        "ADJUSTMENT": {
+          "in": 0,
+          "out": 9,
+          "n": "1"
+        }
+      },
+      "ledgerStock": 3
+    },
+    "saleItems": {
+      "invoices": "6",
+      "qty": 17
+    },
+    "returns": {
+      "returns": "0",
+      "qty": 0
+    },
+    "po": {
+      "lines": [
+        {
+          "poId": 58,
+          "orderNo": "PO-WH-202604-0004",
+          "status": "COMPLETED",
+          "ordered": 20,
+          "received": 20
+        },
+        {
+          "poId": 102,
+          "orderNo": "PO-WH-202606-0003",
+          "status": "PENDING",
+          "ordered": 5,
+          "received": 0
+        }
+      ],
+      "ordered": 25,
+      "received": 20,
+      "issues": [
+        "PO PO-WH-202606-0003: ordered 5, received 0 (pending 5)"
+      ]
+    },
+    "ledgerPurchase": 20,
+    "reconcile": {
+      "out": 0,
+      "in": 0,
+      "n": "0"
+    },
+    "restockEdits": {
+      "qty": 9,
+      "n": "4"
+    },
+    "calcStock": 3,
+    "issues": [
+      "SALE_TRACKING: sale_items=17 vs ledger SALE=26 (warehouse sales often ledger-only)",
+      "PO PO-WH-202606-0003: ordered 5, received 0 (pending 5)",
+      "SALE_EDITS: 4 restock events (+9) from sale edits/deletes"
+    ],
+    "rootCause": "Physical count higher than system"
+  },
+  {
+    "row": 7,
+    "excelName": "felicia kitten lamb 2 kg",
+    "excelQty": 108,
+    "itemId": 1612,
+    "sku": "WH083",
+    "dbName": "Felicia Kitten Dry Lamb 1-12 2kg",
+    "dbQty": 112,
+    "diff": -4,
+    "ledger": {
+      "byType": {
+        "OPENING": {
+          "in": 152,
+          "out": 0,
+          "n": "1"
+        },
+        "PURCHASE": {
+          "in": 236,
+          "out": 0,
+          "n": "2"
+        },
+        "SALE": {
+          "in": 0,
+          "out": 128,
+          "n": "19"
+        },
+        "RESTOCK": {
+          "in": 4,
+          "out": 0,
+          "n": "1"
+        },
+        "ADJUSTMENT": {
+          "in": 0,
+          "out": 152,
+          "n": "1"
+        }
+      },
+      "ledgerStock": 112
+    },
+    "saleItems": {
+      "invoices": "18",
+      "qty": 124
+    },
+    "returns": {
+      "returns": "0",
+      "qty": 0
+    },
+    "po": {
+      "lines": [
+        {
+          "poId": 25,
+          "orderNo": "PO-WH-202602-0003",
+          "status": "COMPLETED",
+          "ordered": 56,
+          "received": 56
+        },
+        {
+          "poId": 89,
+          "orderNo": "PO-WH-202604-0035",
+          "status": "COMPLETED",
+          "ordered": 180,
+          "received": 180
+        }
+      ],
+      "ordered": 236,
+      "received": 236,
+      "issues": []
+    },
+    "ledgerPurchase": 236,
+    "reconcile": {
+      "out": 0,
+      "in": 0,
+      "n": "0"
+    },
+    "restockEdits": {
+      "qty": 4,
+      "n": "1"
+    },
+    "calcStock": 112,
+    "issues": [
+      "SALE_TRACKING: sale_items=124 vs ledger SALE=128 (warehouse sales often ledger-only)",
+      "SALE_EDITS: 1 restock events (+4) from sale edits/deletes"
+    ],
+    "rootCause": "Count variance / sales vs Excel date"
+  },
+  {
+    "row": 14,
+    "excelName": "jungle kitten 15 kg",
+    "excelQty": 0,
+    "itemId": 1629,
+    "sku": "WH100",
+    "dbName": "Jungle Kitten Dry Chicken 15kg",
+    "dbQty": -3,
+    "diff": 3,
+    "ledger": {
+      "byType": {
+        "OPENING": {
+          "in": 4,
+          "out": 0,
+          "n": "1"
+        },
+        "PURCHASE": {
+          "in": 42,
+          "out": 0,
+          "n": "3"
+        },
+        "SALE": {
+          "in": 0,
+          "out": 52,
+          "n": "20"
+        },
+        "RESTOCK": {
+          "in": 7,
+          "out": 0,
+          "n": "4"
+        },
+        "ADJUSTMENT": {
+          "in": 0,
+          "out": 4,
+          "n": "1"
+        }
+      },
+      "ledgerStock": -3
+    },
+    "saleItems": {
+      "invoices": "15",
+      "qty": 45
+    },
+    "returns": {
+      "returns": "0",
+      "qty": 0
+    },
+    "po": {
+      "lines": [
+        {
+          "poId": 35,
+          "orderNo": "PO-WH-202602-0013",
+          "status": "COMPLETED",
+          "ordered": 15,
+          "received": 15
+        },
+        {
+          "poId": 78,
+          "orderNo": "PO-WH-202604-0024",
+          "status": "COMPLETED",
+          "ordered": 7,
+          "received": 7
+        },
+        {
+          "poId": 89,
+          "orderNo": "PO-WH-202604-0035",
+          "status": "COMPLETED",
+          "ordered": 20,
+          "received": 20
+        }
+      ],
+      "ordered": 42,
+      "received": 42,
+      "issues": []
+    },
+    "ledgerPurchase": 42,
+    "reconcile": {
+      "out": 0,
+      "in": 0,
+      "n": "0"
+    },
+    "restockEdits": {
+      "qty": 5,
+      "n": "3"
+    },
+    "calcStock": -3,
+    "issues": [
+      "SALE_TRACKING: sale_items=45 vs ledger SALE=52 (warehouse sales often ledger-only)",
+      "OVERSOLD: sold 52 vs PO+opening inflow 46 (negative stock allowed)",
+      "SOLD_OUT_IN_SYSTEM: all receipts sold; Excel still shows 0 — missing PO or unposted stock",
+      "SALE_EDITS: 3 restock events (+5) from sale edits/deletes"
+    ],
+    "rootCause": "Fully sold in system; Excel has stock"
+  },
+  {
+    "row": 4,
+    "excelName": "felicia digest 12 kg",
+    "excelQty": 7,
+    "itemId": 1616,
+    "sku": "WH087",
+    "dbName": "Felicia Adult Digest Chicken 12kg",
+    "dbQty": 5,
+    "diff": 2,
+    "ledger": {
+      "byType": {
+        "OPENING": {
+          "in": 10,
+          "out": 0,
+          "n": "1"
+        },
+        "PURCHASE": {
+          "in": 23,
+          "out": 0,
+          "n": "2"
+        },
+        "SALE": {
+          "in": 0,
+          "out": 20,
+          "n": "10"
+        },
+        "RESTOCK": {
+          "in": 2,
+          "out": 0,
+          "n": "2"
+        },
+        "ADJUSTMENT": {
+          "in": 0,
+          "out": 10,
+          "n": "1"
+        }
+      },
+      "ledgerStock": 5
+    },
+    "saleItems": {
+      "invoices": "8",
+      "qty": 18
+    },
+    "returns": {
+      "returns": "0",
+      "qty": 0
+    },
+    "po": {
+      "lines": [
+        {
+          "poId": 25,
+          "orderNo": "PO-WH-202602-0003",
+          "status": "COMPLETED",
+          "ordered": 3,
+          "received": 3
+        },
+        {
+          "poId": 89,
+          "orderNo": "PO-WH-202604-0035",
+          "status": "COMPLETED",
+          "ordered": 20,
+          "received": 20
+        }
+      ],
+      "ordered": 23,
+      "received": 23,
+      "issues": []
+    },
+    "ledgerPurchase": 23,
+    "reconcile": {
+      "out": 0,
+      "in": 0,
+      "n": "0"
+    },
+    "restockEdits": {
+      "qty": 2,
+      "n": "2"
+    },
+    "calcStock": 5,
+    "issues": [
+      "SALE_TRACKING: sale_items=18 vs ledger SALE=20 (warehouse sales often ledger-only)",
+      "SALE_EDITS: 2 restock events (+2) from sale edits/deletes"
+    ],
+    "rootCause": "Physical count higher than system"
+  },
+  {
+    "row": 11,
+    "excelName": "felicia pouch kitten  chicken 85g",
+    "excelQty": 564,
+    "itemId": 1597,
+    "sku": "WH068",
+    "dbName": "Felicia Pouch Kitten Chicken 85g",
+    "dbQty": 566,
+    "diff": -2,
+    "ledger": {
+      "byType": {
+        "OPENING": {
+          "in": 626,
+          "out": 0,
+          "n": "1"
+        },
+        "PURCHASE": {
+          "in": 720,
+          "out": 0,
+          "n": "2"
+        },
+        "SALE": {
+          "in": 0,
+          "out": 154,
+          "n": "9"
+        },
+        "ADJUSTMENT": {
+          "in": 0,
+          "out": 626,
+          "n": "1"
+        }
+      },
+      "ledgerStock": 566
+    },
+    "saleItems": {
+      "invoices": "8",
+      "qty": 154
+    },
+    "returns": {
+      "returns": "0",
+      "qty": 0
+    },
+    "po": {
+      "lines": [
+        {
+          "poId": 25,
+          "orderNo": "PO-WH-202602-0003",
+          "status": "COMPLETED",
+          "ordered": 360,
+          "received": 360
+        },
+        {
+          "poId": 89,
+          "orderNo": "PO-WH-202604-0035",
+          "status": "COMPLETED",
+          "ordered": 360,
+          "received": 360
+        }
+      ],
+      "ordered": 720,
+      "received": 720,
+      "issues": []
+    },
+    "ledgerPurchase": 720,
+    "reconcile": {
+      "out": 0,
+      "in": 0,
+      "n": "0"
+    },
+    "restockEdits": {
+      "qty": 0,
+      "n": "0"
+    },
+    "calcStock": 566,
+    "issues": [],
+    "rootCause": "Count variance / sales vs Excel date"
+  }
+]

@@ -1,0 +1,319 @@
+{
+  "dryRun": false,
+  "merged_at": "2026-06-20T18:50:30.146Z",
+  "results": [
+    {
+      "name": "Balls",
+      "keep": 2763,
+      "retire": 1822,
+      "keep_sku": "WH-UNIT6WAREH-BALL-0001",
+      "retire_sku": "WH293",
+      "before": {
+        "keep_stock": -8,
+        "retire_stock": 0,
+        "refs": {
+          "sale_items": 0,
+          "sales_return_items": 0,
+          "purchase_order_items": 0,
+          "inventory_ledger_entries": 1,
+          "transfer_items": 0,
+          "stock_reports": 0
+        }
+      },
+      "after": {
+        "keep_stock": -8,
+        "sale_invoices": 1,
+        "sale_qty": 8,
+        "retire_sale_refs_left": 0
+      },
+      "action": "MERGED"
+    },
+    {
+      "name": "Royal Canin Gastrointestinal 400g",
+      "keep": 1539,
+      "retire": 2753,
+      "keep_sku": "WH010",
+      "retire_sku": "WH-2-RCG4-0001",
+      "before": {
+        "keep_stock": -12,
+        "retire_stock": 12,
+        "refs": {
+          "sale_items": 0,
+          "sales_return_items": 0,
+          "purchase_order_items": 1,
+          "inventory_ledger_entries": 1,
+          "transfer_items": 0,
+          "stock_reports": 0
+        }
+      },
+      "after": {
+        "keep_stock": 0,
+        "sale_invoices": 3,
+        "sale_qty": 13,
+        "retire_sale_refs_left": 0
+      },
+      "action": "MERGED"
+    },
+    {
+      "name": "Royal Canin Hair & Skin Care 2 KG",
+      "keep": 1535,
+      "retire": 2759,
+      "keep_sku": "WH006",
+      "retire_sku": "WH-2-RCHS-0001",
+      "before": {
+        "keep_stock": -20,
+        "retire_stock": 18,
+        "refs": {
+          "sale_items": 0,
+          "sales_return_items": 0,
+          "purchase_order_items": 1,
+          "inventory_ledger_entries": 1,
+          "transfer_items": 0,
+          "stock_reports": 0
+        }
+      },
+      "after": {
+        "keep_stock": -2,
+        "sale_invoices": 4,
+        "sale_qty": 20,
+        "retire_sale_refs_left": 0
+      },
+      "action": "MERGED"
+    },
+    {
+      "name": "Royal Canin Jelly Instintcive 85G",
+      "keep": 1543,
+      "retire": 2755,
+      "keep_sku": "WH014",
+      "retire_sku": "WH-2-RCJI-0001",
+      "before": {
+        "keep_stock": -193,
+        "retire_stock": 72,
+        "refs": {
+          "sale_items": 1,
+          "sales_return_items": 0,
+          "purchase_order_items": 1,
+          "inventory_ledger_entries": 6,
+          "transfer_items": 0,
+          "stock_reports": 1
+        }
+      },
+      "after": {
+        "keep_stock": -121,
+        "sale_invoices": 6,
+        "sale_qty": 217,
+        "retire_sale_refs_left": 0
+      },
+      "action": "MERGED"
+    },
+    {
+      "name": "Royal Canin jelly Sensitive pouch",
+      "keep": 2409,
+      "retire": 2760,
+      "keep_sku": "ROYALCANINJELLYSENSITIVEPOUCH-251938",
+      "retire_sku": "WH-2-RCJS-0001",
+      "before": {
+        "keep_stock": -48,
+        "retire_stock": 48,
+        "refs": {
+          "sale_items": 0,
+          "sales_return_items": 0,
+          "purchase_order_items": 1,
+          "inventory_ledger_entries": 1,
+          "transfer_items": 0,
+          "stock_reports": 0
+        }
+      },
+      "after": {
+        "keep_stock": 0,
+        "sale_invoices": 2,
+        "sale_qty": 48,
+        "retire_sale_refs_left": 0
+      },
+      "action": "MERGED"
+    },
+    {
+      "name": "Royal Canin Maxi Adult 15 KG",
+      "keep": 1554,
+      "retire": 2757,
+      "keep_sku": "WH025",
+      "retire_sku": "WH-2-RCMA-0001",
+      "before": {
+        "keep_stock": -3,
+        "retire_stock": 3,
+        "refs": {
+          "sale_items": 0,
+          "sales_return_items": 0,
+          "purchase_order_items": 1,
+          "inventory_ledger_entries": 1,
+          "transfer_items": 0,
+          "stock_reports": 0
+        }
+      },
+      "after": {
+        "keep_stock": 0,
+        "sale_invoices": 2,
+        "sale_qty": 3,
+        "retire_sale_refs_left": 0
+      },
+      "action": "MERGED"
+    },
+    {
+      "name": "Royal Canin Maxi puppy 15 KG",
+      "keep": 1553,
+      "retire": 2758,
+      "keep_sku": "WH024",
+      "retire_sku": "WH-2-RCMP-0001",
+      "before": {
+        "keep_stock": -1,
+        "retire_stock": 1,
+        "refs": {
+          "sale_items": 0,
+          "sales_return_items": 0,
+          "purchase_order_items": 1,
+          "inventory_ledger_entries": 1,
+          "transfer_items": 0,
+          "stock_reports": 0
+        }
+      },
+      "after": {
+        "keep_stock": 0,
+        "sale_invoices": 1,
+        "sale_qty": 1,
+        "retire_sale_refs_left": 0
+      },
+      "action": "MERGED"
+    },
+    {
+      "name": "Royal Canin Maxi Starter  15 KG",
+      "keep": 1551,
+      "retire": 2761,
+      "keep_sku": "WH022",
+      "retire_sku": "WH-2-RCMS-0001",
+      "before": {
+        "keep_stock": -1,
+        "retire_stock": 1,
+        "refs": {
+          "sale_items": 0,
+          "sales_return_items": 0,
+          "purchase_order_items": 1,
+          "inventory_ledger_entries": 1,
+          "transfer_items": 0,
+          "stock_reports": 0
+        }
+      },
+      "after": {
+        "keep_stock": 0,
+        "sale_invoices": 1,
+        "sale_qty": 1,
+        "retire_sale_refs_left": 0
+      },
+      "action": "MERGED"
+    },
+    {
+      "name": "Royal Canin Persian Adult 10 KG",
+      "keep": 1569,
+      "retire": 2750,
+      "keep_sku": "WH040",
+      "retire_sku": "WH-2-RCPA-0001",
+      "before": {
+        "keep_stock": -4,
+        "retire_stock": 4,
+        "refs": {
+          "sale_items": 0,
+          "sales_return_items": 0,
+          "purchase_order_items": 1,
+          "inventory_ledger_entries": 1,
+          "transfer_items": 0,
+          "stock_reports": 0
+        }
+      },
+      "after": {
+        "keep_stock": 0,
+        "sale_invoices": 2,
+        "sale_qty": 4,
+        "retire_sale_refs_left": 0
+      },
+      "action": "MERGED"
+    },
+    {
+      "name": "Royal Canin Persian Adult 2 KG",
+      "keep": 1567,
+      "retire": 2752,
+      "keep_sku": "WH038",
+      "retire_sku": "WH-2-RCPA-0003",
+      "before": {
+        "keep_stock": -13,
+        "retire_stock": 12,
+        "refs": {
+          "sale_items": 0,
+          "sales_return_items": 0,
+          "purchase_order_items": 1,
+          "inventory_ledger_entries": 1,
+          "transfer_items": 0,
+          "stock_reports": 0
+        }
+      },
+      "after": {
+        "keep_stock": -1,
+        "sale_invoices": 3,
+        "sale_qty": 13,
+        "retire_sale_refs_left": 0
+      },
+      "action": "MERGED"
+    },
+    {
+      "name": "Royal Canin Persian Adult 4 KG",
+      "keep": 1568,
+      "retire": 2751,
+      "keep_sku": "WH039",
+      "retire_sku": "WH-2-RCPA-0002",
+      "before": {
+        "keep_stock": -4,
+        "retire_stock": 4,
+        "refs": {
+          "sale_items": 0,
+          "sales_return_items": 0,
+          "purchase_order_items": 1,
+          "inventory_ledger_entries": 1,
+          "transfer_items": 0,
+          "stock_reports": 0
+        }
+      },
+      "after": {
+        "keep_stock": 0,
+        "sale_invoices": 2,
+        "sale_qty": 4,
+        "retire_sale_refs_left": 0
+      },
+      "action": "MERGED"
+    },
+    {
+      "name": "Royal Canin Renal Liquid",
+      "keep": 1573,
+      "retire": 2756,
+      "keep_sku": "WH044",
+      "retire_sku": "WH-2-RCRL-0001",
+      "before": {
+        "keep_stock": -9,
+        "retire_stock": 9,
+        "refs": {
+          "sale_items": 0,
+          "sales_return_items": 0,
+          "purchase_order_items": 1,
+          "inventory_ledger_entries": 1,
+          "transfer_items": 0,
+          "stock_reports": 0
+        }
+      },
+      "after": {
+        "keep_stock": 0,
+        "sale_invoices": 3,
+        "sale_qty": 18,
+        "retire_sale_refs_left": 0
+      },
+      "action": "MERGED"
+    }
+  ],
+  "remaining_dupes": []
+}

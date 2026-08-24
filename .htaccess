@@ -1,0 +1,16 @@
+# DO NOT REMOVE. CLOUDLINUX PASSENGER CONFIGURATION BEGIN
+PassengerAppRoot "/home/petzonep/multiposserver.petzone.pk"
+PassengerBaseURI "/"
+PassengerNodejs "/home/petzonep/nodevenv/multiposserver.petzone.pk/22/bin/node"
+PassengerAppType node
+PassengerStartupFile server.js
+# DO NOT REMOVE. CLOUDLINUX PASSENGER CONFIGURATION END
+# DO NOT REMOVE OR MODIFY. CLOUDLINUX ENV VARS CONFIGURATION BEGIN
+<IfModule Litespeed>
+SetEnv DB_HOST 127.0.0.1
+SetEnv DB_NAME petzonep_software
+SetEnv DB_PASSWORD kaimkhankhani@123
+SetEnv DB_USER petzonep_zubairahmed
+SetEnv CORS_ORIGIN https://petzone-pos-frontend.vercel.app
+</IfModule>
+# DO NOT REMOVE OR MODIFY. CLOUDLINUX ENV VARS CONFIGURATION END

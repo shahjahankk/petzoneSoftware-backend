@@ -1,0 +1,55 @@
+{
+  "name": "multipos-backend",
+  "version": "1.0.0",
+  "description": "Scalable Node.js backend API for comprehensive multi-POS management system",
+  "main": "server.js",
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "prod": "NODE_ENV=production node server.js",
+    "cpanel": "NODE_ENV=production node server.js",
+    "build": "echo 'Backend build completed - Node.js application ready for production'"
+  },
+  "keywords": [
+    "pos",
+    "point-of-sale",
+    "inventory-management",
+    "multi-branch",
+    "warehouse-management",
+    "pos-system",
+    "express",
+    "mysql",
+    "rest-api",
+    "nodejs"
+  ],
+  "author": "PetZone Development Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/petzone/multipos-backend.git"
+  },
+  "bugs": {
+    "url": "https://github.com/petzone/multipos-backend/issues"
+  },
+  "homepage": "https://github.com/petzone/multipos-backend#readme",
+  "dependencies": {
+    "bcrypt": "^5.1.1",
+    "cookie-parser": "^1.4.6",
+    "cors": "^2.8.5",
+    "date-fns": "^4.1.0",
+    "dotenv": "^16.6.1",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.1.5",
+    "express-validator": "^7.0.1",
+    "helmet": "^7.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.0",
+    "multer": "^2.0.2",
+    "mysql2": "^3.15.3",
+    "pdfkit": "^0.17.2",
+    "xlsx": "^0.18.5"
+  }
+}

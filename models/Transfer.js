@@ -1,4 +1,5 @@
 const { pool } = require('../config/database');
+const { dateColumnInTz, currentDateInTz } = require('../utils/reportDate');
 
 class Transfer {
   constructor(data) {
@@ -22,7 +23,7 @@ class Transfer {
   static async generateTransferNumber() {
     try {
       const [result] = await pool.execute(
-        'SELECT COUNT(*) as count FROM transfers WHERE DATE(created_at) = CURDATE()'
+        `SELECT COUNT(*) as count FROM transfers WHERE ${dateColumnInTz('created_at')} = ${currentDateInTz()}`
       );
       const count = result[0].count + 1;
       const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
@@ -215,11 +216,11 @@ class Transfer {
         params.push(approvedBy);
       }
       if (startDate) {
-        whereConditions.push('DATE(t.created_at) >= ?');
+        whereConditions.push(`${dateColumnInTz('t.created_at')} >= ?`);
         params.push(startDate);
       }
       if (endDate) {
-        whereConditions.push('DATE(t.created_at) <= ?');
+        whereConditions.push(`${dateColumnInTz('t.created_at')} <= ?`);
         params.push(endDate);
       }
       if (search) {
@@ -319,7 +320,7 @@ class Transfer {
         }
 
         if (status === 'delivered' || status === 'COMPLETED') {
-          updateFields.push('actual_date = CURDATE()');
+          updateFields.push(`actual_date = DATE(CONVERT_TZ(NOW(), '+00:00', '${REPORT_TIMEZONE}'))`);
         }
 
         updateParams.push(id);
@@ -391,11 +392,11 @@ class Transfer {
         params.push(fromWarehouseId);
       }
       if (startDate) {
-        whereConditions.push('DATE(created_at) >= ?');
+        whereConditions.push(`${dateColumnInTz('created_at')} >= ?`);
         params.push(startDate);
       }
       if (endDate) {
-        whereConditions.push('DATE(created_at) <= ?');
+        whereConditions.push(`${dateColumnInTz('created_at')} <= ?`);
         params.push(endDate);
       }
 

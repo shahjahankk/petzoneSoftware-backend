@@ -6,6 +6,7 @@ const { pool } = require('../config/database');
 const trashService = require('../services/trashService');
 const InventoryProjection = require('../services/inventoryProjectionService');
 const { getCurrentStock } = require('../services/inventoryLedgerService');
+const { dateColumnInTz } = require('../utils/reportDate');
 
 /** DB stores lowercase (approved); API may send APPROVED. */
 function isApprovedTransferStatus(status) {
@@ -226,8 +227,8 @@ const getTransferLogs = async (req, res) => {
     const whereConditions = [];
     const params = [];
 
-    if (startDate) { whereConditions.push('DATE(t.created_at) >= ?'); params.push(startDate); }
-    if (endDate) { whereConditions.push('DATE(t.created_at) <= ?'); params.push(endDate); }
+    if (startDate) { whereConditions.push(`${dateColumnInTz('t.created_at')} >= ?`); params.push(startDate); }
+    if (endDate) { whereConditions.push(`${dateColumnInTz('t.created_at')} <= ?`); params.push(endDate); }
     if (status) { whereConditions.push('t.status = ?'); params.push(status); }
     if (fromWarehouseId) { whereConditions.push('t.from_warehouse_id = ?'); params.push(fromWarehouseId); }
     if (toWarehouseId) { whereConditions.push('t.to_warehouse_id = ?'); params.push(toWarehouseId); }

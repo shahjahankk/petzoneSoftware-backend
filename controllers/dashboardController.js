@@ -1,5 +1,6 @@
 const { pool } = require('../config/database');
 const { ledgerScopedQuantitySubquery } = require('../services/inventoryLedgerService');
+const { monthColumnInTz, yearColumnInTz, currentMonthInTz, currentYearInTz } = require('../utils/reportDate');
 
 // Get dashboard analytics data
 const getDashboardAnalytics = async (req, res) => {
@@ -47,8 +48,8 @@ const getDashboardAnalytics = async (req, res) => {
       const [salesResult] = await pool.execute(`
         SELECT COALESCE(SUM(s.total), 0) as total_sales
         FROM sales s
-        WHERE MONTH(s.created_at) = MONTH(CURDATE()) 
-        AND YEAR(s.created_at) = YEAR(CURDATE())
+        WHERE ${monthColumnInTz('s.created_at')} = ${currentMonthInTz()}
+        AND ${yearColumnInTz('s.created_at')} = ${currentYearInTz()}
         AND s.status = 'COMPLETED'
         ${salesWhereClause}
       `, salesParams)
@@ -63,8 +64,8 @@ const getDashboardAnalytics = async (req, res) => {
       const [ordersResult] = await pool.execute(`
         SELECT COUNT(*) as total_orders
         FROM sales s
-        WHERE MONTH(s.created_at) = MONTH(CURDATE()) 
-        AND YEAR(s.created_at) = YEAR(CURDATE())
+        WHERE ${monthColumnInTz('s.created_at')} = ${currentMonthInTz()}
+        AND ${yearColumnInTz('s.created_at')} = ${currentYearInTz()}
         AND s.status = 'COMPLETED'
         ${salesWhereClause}
       `, salesParams)
@@ -207,8 +208,8 @@ const getDashboardSummary = async (req, res) => {
         key: 'totalSales', 
         query: `SELECT COALESCE(SUM(s.total), 0) as value 
                 FROM sales s
-                WHERE MONTH(s.created_at) = MONTH(CURDATE()) 
-                AND YEAR(s.created_at) = YEAR(CURDATE())
+                WHERE ${monthColumnInTz('s.created_at')} = ${currentMonthInTz()}
+                AND ${yearColumnInTz('s.created_at')} = ${currentYearInTz()}
                 AND s.status = 'COMPLETED'
                 ${salesWhereClause}`,
         params: salesParams
@@ -217,8 +218,8 @@ const getDashboardSummary = async (req, res) => {
         key: 'totalOrders', 
         query: `SELECT COUNT(*) as value 
                 FROM sales s
-                WHERE MONTH(s.created_at) = MONTH(CURDATE()) 
-                AND YEAR(s.created_at) = YEAR(CURDATE())
+                WHERE ${monthColumnInTz('s.created_at')} = ${currentMonthInTz()}
+                AND ${yearColumnInTz('s.created_at')} = ${currentYearInTz()}
                 AND s.status = 'COMPLETED'
                 ${salesWhereClause}`,
         params: salesParams

@@ -1,4 +1,5 @@
 const { pool } = require('../config/database');
+const { dateColumnInTz } = require('../utils/reportDate');
 const { enrichLedgerTransactionRow } = require('../utils/ledgerRowDates');
 const { LEDGER_SORT_AT_S, LEDGER_SORT_AT_S2 } = require('../utils/ledgerSortAtSql');
 const { isLedgerMigrationComplete } = require('../services/ledgerMigrationMeta');
@@ -194,11 +195,11 @@ const getCustomerLedger = async (req, res) => {
 
     // Date filtering for returns (use s_return.created_at)
     if (startDate) {
-      returnsWhereConditions.push('DATE(s_return.created_at) >= ?');
+      returnsWhereConditions.push(`${dateColumnInTz('s_return.created_at')} >= ?`);
       returnsParams.push(startDate);
     }
     if (endDate) {
-      returnsWhereConditions.push('DATE(s_return.created_at) <= ?');
+      returnsWhereConditions.push(`${dateColumnInTz('s_return.created_at')} <= ?`);
       returnsParams.push(endDate);
     }
 

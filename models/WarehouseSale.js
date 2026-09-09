@@ -13,16 +13,32 @@ class WarehouseSale {
     this.id = data.id;
     this.retailerId = data.retailer_id;
     this.warehouseKeeperId = data.warehouse_keeper_id;
+    this.scopeType = data.scope_type;
+    this.scopeId = data.scope_id;
     this.totalAmount = data.total_amount;
     this.taxAmount = data.tax_amount;
     this.discountAmount = data.discount_amount;
     this.finalAmount = data.final_amount;
+    this.subtotal = data.total_amount;
+    this.tax = data.tax_amount;
+    this.discount = data.discount_amount;
+    this.total = data.final_amount;
     this.paymentMethod = data.payment_method;
     this.paymentStatus = data.payment_status;
+    this.paymentAmount = data.payment_amount;
+    this.creditAmount = data.credit_amount;
     this.invoiceNumber = data.invoice_number;
+    this.invoiceNo = data.invoice_number;
+    this.invoice_no = data.invoice_number;
+    this.customerName = data.customer_name;
+    this.customerPhone = data.customer_phone;
+    this.customerInfo = data.customer_info ? JSON.parse(data.customer_info) : null;
+    this.saleDate = data.sale_date || null;
+    this.sale_date = data.sale_date || null;
     this.notes = data.notes;  
     this.status = data.status;
     this.createdAt = data.created_at;
+    this.created_at = data.created_at;
     this.updatedAt = data.updated_at;
   }
 
@@ -494,9 +510,10 @@ class WarehouseSale {
 
     try {
       const [rows] = await connection.execute(
-        `SELECT s.id, s.invoice_no as invoice_number, s.scope_type, s.scope_id, s.user_id, s.shift_id, 
+        `SELECT s.id, s.invoice_no as invoice_number, s.scope_type, s.scope_id, s.user_id, s.shift_id,
                 s.subtotal as total_amount, s.tax as tax_amount, s.discount as discount_amount, s.total as final_amount,
-                s.payment_method, s.payment_status, s.customer_info, s.customer_name, s.customer_phone, s.notes, s.status, 
+          s.payment_method, s.payment_status, s.payment_amount, s.credit_amount,
+          s.customer_info, s.customer_name, s.customer_phone, s.notes, s.status, s.sale_date,
                 s.created_at, s.updated_at,
                 u.username as warehouse_keeper_name
          FROM sales s
@@ -530,9 +547,10 @@ class WarehouseSale {
     const connection = await pool.getConnection();
 
     try {
-      let query = `SELECT s.id, s.invoice_no as invoice_number, s.scope_type, s.scope_id, s.user_id, s.shift_id, 
+      let query = `SELECT s.id, s.invoice_no as invoice_number, s.scope_type, s.scope_id, s.user_id, s.shift_id,
                            s.subtotal as total_amount, s.tax as tax_amount, s.discount as discount_amount, s.total as final_amount,
-                           s.payment_method, s.payment_status, s.customer_info, s.notes, s.status, 
+               s.payment_method, s.payment_status, s.payment_amount, s.credit_amount,
+               s.customer_info, s.customer_name, s.customer_phone, s.notes, s.status, s.sale_date,
                            s.created_at, s.updated_at,
                            u.username as warehouse_keeper_name
                    FROM sales s

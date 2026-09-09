@@ -5,6 +5,7 @@ const InventoryItem = require('../models/InventoryItem');
 const Sale = require('../models/Sale');
 const { pool } = require('../config/database');
 const { ledgerScopedQuantitySubquery } = require('../services/inventoryLedgerService');
+const { dateColumnInTz, currentDateInTz } = require('../utils/reportDate');
 // @desc    Get all POS terminals for a branch
 // @route   GET /api/pos/branch/:branchId
 // @access  Private (Admin, Warehouse Keeper, Cashier)
@@ -309,7 +310,7 @@ const getPOSStatus = async (req, res, next) => {
         SUM(total) as total
       FROM sales 
       WHERE pos_terminal_id = ? 
-      AND DATE(created_at) = CURDATE()
+      AND ${dateColumnInTz('created_at')} = ${currentDateInTz()}
     `, [id]);
 
     res.json({

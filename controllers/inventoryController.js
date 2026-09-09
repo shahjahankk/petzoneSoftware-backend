@@ -307,7 +307,7 @@ const getInventoryItems = async (req, res, next) => {
           const returnedQty = parseFloat(F.returned) || 0;
           const restockedQty = parseFloat(L.restocked) || 0;
           const ledgerQty = parseFloat(L.current_stock) || 0;
-          const netSold = Math.max(0, grossSold - returnedQty - restockedQty);
+          const netSold = Math.max(0, grossSold - returnedQty);
           /** Opening + completed PO receipts — what users usually mean by “total purchase” */
           const totalPurchaseIn = openingBal + poPurchased;
           /** Recompute on-hand from movement buckets (must match ledgerQty when data is consistent). */
@@ -316,7 +316,6 @@ const getInventoryItems = async (req, res, next) => {
             poPurchased -
             grossSold +
             returnedQty +
-            restockedQty +
             (parseFloat(L.transfer_in) || 0) -
             (parseFloat(L.transfer_out) || 0) +
             (parseFloat(L.adjustments) || 0);

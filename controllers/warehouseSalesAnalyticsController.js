@@ -1,4 +1,5 @@
 const { pool } = require('../config/database');
+const { dateColumnInTz } = require('../utils/reportDate');
 
 // @desc    Get comprehensive warehouse sales analytics
 // @route   GET /api/warehouse-sales/:warehouseId/analytics
@@ -53,12 +54,12 @@ const getWarehouseSalesAnalytics = async (req, res) => {
     }
 
     if (startDate) {
-      whereConditions.push('DATE(s.created_at) >= ?');
+      whereConditions.push(`${dateColumnInTz('s.created_at')} >= ?`);
       params.push(startDate);
     }
 
     if (endDate) {
-      whereConditions.push('DATE(s.created_at) <= ?');
+      whereConditions.push(`${dateColumnInTz('s.created_at')} <= ?`);
       params.push(endDate);
     }
 
@@ -350,12 +351,12 @@ const exportWarehouseSalesAnalytics = async (req, res) => {
     }
 
     if (startDate) {
-      whereConditions.push('DATE(s.created_at) >= ?');
+      whereConditions.push(`${dateColumnInTz('s.created_at')} >= ?`);
       params.push(startDate);
     }
 
     if (endDate) {
-      whereConditions.push('DATE(s.created_at) <= ?');
+      whereConditions.push(`${dateColumnInTz('s.created_at')} <= ?`);
       params.push(endDate);
     }
 

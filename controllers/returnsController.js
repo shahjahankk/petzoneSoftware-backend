@@ -1,6 +1,7 @@
 const { executeQuery, pool } = require('../config/database');
 const { normalizeScope } = require('../services/inventoryLedgerService');
 const InventoryProjection = require('../services/inventoryProjectionService');
+const { dateColumnInTz } = require('../utils/reportDate');
 
 // GET /api/returns/restock
 // Admin-only read of Return Restock movements with filters
@@ -24,11 +25,11 @@ async function getReturnRestock(req, res) {
       params.push(scopeId);
     }
     if (from) {
-      where.push('DATE(sm.created_at) >= ?');
+      where.push(`${dateColumnInTz('sm.created_at')} >= ?`);
       params.push(from);
     }
     if (to) {
-      where.push('DATE(sm.created_at) <= ?');
+      where.push(`${dateColumnInTz('sm.created_at')} <= ?`);
       params.push(to);
     }
     if (search) {

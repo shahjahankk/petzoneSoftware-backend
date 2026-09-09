@@ -3,6 +3,7 @@ const { pool } = require('../config/database');
 const PDFDocument = require('pdfkit');
 const { format } = require('date-fns');
 const trashService = require('../services/trashService');
+const { dateColumnInTz, monthColumnInTz, yearColumnInTz } = require('../utils/reportDate');
 
 // Get all financial vouchers with filters
 const getFinancialVouchers = async (req, res) => {
@@ -77,11 +78,11 @@ const getFinancialVouchers = async (req, res) => {
       countParams.push(userId);
     }
     if (dateFrom) {
-      countQuery += ' AND DATE(created_at) >= ?';
+      countQuery += ` AND ${dateColumnInTz('created_at')} >= ?`;
       countParams.push(dateFrom);
     }
     if (dateTo) {
-      countQuery += ' AND DATE(created_at) <= ?';
+      countQuery += ` AND ${dateColumnInTz('created_at')} <= ?`;
       countParams.push(dateTo);
     }
     if (search) {
@@ -720,11 +721,11 @@ const getFinancialVouchersByScope = async (req, res) => {
       countParams.push(userId);
     }
     if (dateFrom) {
-      countQuery += ' AND DATE(created_at) >= ?';
+      countQuery += ` AND ${dateColumnInTz('created_at')} >= ?`;
       countParams.push(dateFrom);
     }
     if (dateTo) {
-      countQuery += ' AND DATE(created_at) <= ?';
+      countQuery += ` AND ${dateColumnInTz('created_at')} <= ?`;
       countParams.push(dateTo);
     }
     if (search) {
@@ -876,13 +877,10 @@ const generateVoucherReport = async (req, res) => {
 
     // Date filtering based on report type
     if (type === 'daily' && date) {
-      const reportDate = new Date(date);
-      const startOfDay = format(reportDate, 'yyyy-MM-dd 00:00:00');
-      const endOfDay = format(reportDate, 'yyyy-MM-dd 23:59:59');
-      query += ` AND fv.created_at BETWEEN ? AND ?`;
-      params.push(startOfDay, endOfDay);
+      query += ` AND ${dateColumnInTz('fv.created_at')} = ?`;
+      params.push(date);
     } else if (type === 'monthly' && month && year) {
-      query += ` AND MONTH(fv.created_at) = ? AND YEAR(fv.created_at) = ?`;
+      query += ` AND ${monthColumnInTz('fv.created_at')} = ? AND ${yearColumnInTz('fv.created_at')} = ?`;
       params.push(month, year);
     }
 

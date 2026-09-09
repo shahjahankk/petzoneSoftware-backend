@@ -1,6 +1,7 @@
 const { pool } = require('../config/database');
 const { isLedgerMigrationComplete } = require('../services/ledgerMigrationMeta');
 const { CLINIC_LINE_SQL, PRODUCT_LINE_SQL } = require('../utils/clinicSaleItem');
+const { dateColumnInTz, yearColumnInTz } = require('../utils/reportDate');
 
 // @desc    Get reports summary
 // @route   GET /api/reports/summary
@@ -105,8 +106,8 @@ const buildSalesReportWhere = async (user, { branch, cashier, startDate, endDate
 
   if (branch && branch !== 'all')   { whereClause += ' AND s.scope_id = ?';          params.push(branch); }
   if (cashier && cashier !== 'all') { whereClause += ' AND s.user_id = ?';           params.push(cashier); }
-  if (startDate)                    { whereClause += ' AND DATE(s.created_at) >= ?'; params.push(startDate); }
-  if (endDate)                      { whereClause += ' AND DATE(s.created_at) <= ?'; params.push(endDate); }
+  if (startDate)                    { whereClause += ` AND ${dateColumnInTz('s.created_at')} >= ?`; params.push(startDate); }
+  if (endDate)                      { whereClause += ` AND ${dateColumnInTz('s.created_at')} <= ?`; params.push(endDate); }
 
   return { whereClause, params };
 };
@@ -152,7 +153,7 @@ const getSalesReports = async (req, res) => {
 
     // ── Fetch ALL rows (real sales + settlements + refunds) ────────────────
     const snapshotJoin = ledgerMigrationDone
-      ? `LEFT JOIN invoice_snapshots inv ON inv.sale_id = s.id`
+      ? `LEFT JOIN (SELECT sale_id, MAX(final_balance) AS final_balance FROM invoice_snapshots GROUP BY sale_id) inv ON inv.sale_id = s.id`
       : '';
     const snapshotSelect = ledgerMigrationDone
       ? `, inv.final_balance AS snapshot_final_balance`
@@ -285,10 +286,6 @@ const getSalesReports = async (req, res) => {
       dateMap[date].credit       += credit;
       dateMap[date].transactions += 1;
     });
-    const salesByDate = Object.values(dateMap)
-      .sort((a, b) => a.date.localeCompare(b.date))
-      .map(d => ({ ...d, avgTicket: d.transactions > 0 ? d.total / d.transactions : 0 }));
-
     // ── Sales by cashier ───────────────────────────────────────────────────
     const cashierMap = {};
     productSaleMeta.forEach(({ sale, total, paid, credit }) => {
@@ -311,6 +308,42 @@ const getSalesReports = async (req, res) => {
       branchMap[key].transactions += 1;
     });
 
+    // ── Apply settlements and refunds to cashier/branch/date collected totals
+    // so they match the top-line Money Collected figure.
+    const ensureCashier = (sale) => {
+      const key = sale.user_name || (sale.user_id ? `User ${sale.user_id}` : 'Unknown');
+      if (!cashierMap[key]) cashierMap[key] = { cashier: key, total: 0, collected: 0, credit: 0, transactions: 0 };
+      return cashierMap[key];
+    };
+    const ensureBranch = (sale) => {
+      const key = sale.scope_id || 'Unknown';
+      if (!branchMap[key]) branchMap[key] = { branch: key, total: 0, collected: 0, credit: 0, transactions: 0 };
+      return branchMap[key];
+    };
+    const ensureDate = (sale) => {
+      const date = sale.created_at ? new Date(sale.created_at).toISOString().split('T')[0] : 'Unknown';
+      if (!dateMap[date]) dateMap[date] = { date, total: 0, collected: 0, credit: 0, transactions: 0 };
+      return dateMap[date];
+    };
+
+    settlementRows.forEach((r) => {
+      const amount = parseFloat(r.payment_amount || 0);
+      ensureCashier(r).collected += amount;
+      ensureBranch(r).collected  += amount;
+      ensureDate(r).collected    += amount;
+    });
+
+    refundRows.forEach((r) => {
+      const amount = Math.abs(parseFloat(r.payment_amount || r.total || 0));
+      ensureCashier(r).collected -= amount;
+      ensureBranch(r).collected  -= amount;
+      ensureDate(r).collected    -= amount;
+    });
+
+    const salesByDate = Object.values(dateMap)
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map(d => ({ ...d, avgTicket: d.transactions > 0 ? d.total / d.transactions : 0 }));
+
     // ── Payment method breakdown ───────────────────────────────────────────
     const methodMap = {};
     productSaleMeta.forEach(({ sale, total, paid, credit }) => {
@@ -330,7 +363,7 @@ const getSalesReports = async (req, res) => {
     const productSaleIdSet = new Set(productSaleMeta.map((m) => m.sale.id));
     const productMetaById = Object.fromEntries(productSaleMeta.map((m) => [m.sale.id, m]));
     const recentSales = rows
-      .filter(s => !isRefundRow(s) && (isSettlementRow(s) || productSaleIdSet.has(s.id)))
+      .filter(s => isSettlementRow(s) || productSaleIdSet.has(s.id) || isRefundRow(s))
       .slice(0, 20)
       .map(sale => {
         const meta = productMetaById[sale.id];
@@ -758,8 +791,9 @@ const getInventoryReports = async (req, res) => {
     }
 
     try {
+      const entryOrCreated = `COALESCE(le.entry_date, le.created_at)`;
       let movementSql = `
-        SELECT DATE(COALESCE(le.entry_date, le.created_at)) AS date,
+        SELECT DATE(CONVERT_TZ(${entryOrCreated}, '+00:00', '${REPORT_TIMEZONE}')) AS date,
           SUM(CASE WHEN le.event_type IN ('PURCHASE','TRANSFER_IN','RESTOCK','OPENING') THEN le.quantity_in ELSE 0 END) AS received,
           SUM(CASE WHEN le.event_type = 'SALE' THEN le.quantity_out ELSE 0 END) AS sold,
           SUM(CASE WHEN le.event_type = 'RETURN' THEN le.quantity_in ELSE 0 END) AS returned
@@ -767,7 +801,7 @@ const getInventoryReports = async (req, res) => {
         INNER JOIN inventory_items i ON i.id = le.inventory_item_id
           AND le.scope_type = i.scope_type
           AND (CAST(le.scope_id AS CHAR) COLLATE utf8mb4_bin = CAST(i.scope_id AS CHAR) COLLATE utf8mb4_bin)
-        WHERE COALESCE(le.entry_date, le.created_at) >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+        WHERE CONVERT_TZ(${entryOrCreated}, '+00:00', '${REPORT_TIMEZONE}') >= DATE_SUB(CONVERT_TZ(NOW(), '+00:00', '${REPORT_TIMEZONE}'), INTERVAL 7 DAY)
       `;
       const movementParams = [];
       if (user?.role === 'WAREHOUSE_KEEPER' && user?.warehouseId) {
@@ -781,7 +815,7 @@ const getInventoryReports = async (req, res) => {
         )`;
         movementParams.push(user.branchId, String(user.branchId));
       }
-      movementSql += ` GROUP BY DATE(COALESCE(le.entry_date, le.created_at)) ORDER BY date`;
+      movementSql += ` GROUP BY DATE(CONVERT_TZ(${entryOrCreated}, '+00:00', '${REPORT_TIMEZONE}')) ORDER BY date`;
       const [mr] = await pool.execute(movementSql, movementParams);
       inventoryData.movementData = mr.map(r => ({ date: r.date, received: r.received || 0, sold: r.sold || 0, returned: r.returned || 0 }));
     } catch { inventoryData.movementData = []; }
@@ -796,7 +830,7 @@ const getInventoryReports = async (req, res) => {
           AND le.scope_type = i.scope_type
           AND (CAST(le.scope_id AS CHAR) COLLATE utf8mb4_bin = CAST(i.scope_id AS CHAR) COLLATE utf8mb4_bin)
         WHERE le.event_type = 'SALE'
-          AND COALESCE(le.entry_date, le.created_at) >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+          AND CONVERT_TZ(COALESCE(le.entry_date, le.created_at), '+00:00', '${REPORT_TIMEZONE}') >= DATE_SUB(CONVERT_TZ(NOW(), '+00:00', '${REPORT_TIMEZONE}'), INTERVAL 30 DAY)
       `;
       const topParams = [];
       if (user?.role === 'WAREHOUSE_KEEPER' && user?.warehouseId) {
@@ -841,8 +875,8 @@ const getLedgerReports = async (req, res) => {
     try {
       let query = 'SELECT * FROM ledger WHERE 1=1'; const params = [];
       if (user?.role === 'WAREHOUSE_KEEPER' && user?.warehouseId) { query += ' AND scope_type = "WAREHOUSE" AND scope_id = ?'; params.push(user.warehouseId); }
-      if (startDate) { query += ' AND DATE(created_at) >= ?'; params.push(startDate); }
-      if (endDate)   { query += ' AND DATE(created_at) <= ?'; params.push(endDate); }
+      if (startDate) { query += ` AND ${dateColumnInTz('created_at')} >= ?`; params.push(startDate); }
+      if (endDate)   { query += ` AND ${dateColumnInTz('created_at')} <= ?`; params.push(endDate); }
       if (account && account !== 'all')                 { query += ' AND account_type = ?';     params.push(account); }
       if (transactionType && transactionType !== 'all') { query += ' AND transaction_type = ?'; params.push(transactionType); }
       query += ' ORDER BY created_at DESC';
@@ -853,7 +887,14 @@ const getLedgerReports = async (req, res) => {
       ledgerData.balance = ledgerData.totalCredit - ledgerData.totalDebit;
       ledgerData.recentTransactions = entries.slice(0, 10).map(e => ({ ...e, debit_amount: e.transaction_type === 'DEBIT' ? parseFloat(e.amount || 0) : 0, credit_amount: e.transaction_type === 'CREDIT' ? parseFloat(e.amount || 0) : 0 }));
       const trendMap = {};
-      entries.forEach(e => { const d = e.created_at ? new Date(e.created_at).toISOString().split('T')[0] : 'Unknown'; if (!trendMap[d]) trendMap[d] = { date: d, debit: 0, credit: 0 }; if (e.transaction_type === 'DEBIT') trendMap[d].debit += parseFloat(e.amount || 0); if (e.transaction_type === 'CREDIT') trendMap[d].credit += parseFloat(e.amount || 0); });
+      entries.forEach(e => {
+        const d = e.created_at
+          ? new Date(e.created_at).toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' })
+          : 'Unknown';
+        if (!trendMap[d]) trendMap[d] = { date: d, debit: 0, credit: 0 };
+        if (e.transaction_type === 'DEBIT') trendMap[d].debit += parseFloat(e.amount || 0);
+        if (e.transaction_type === 'CREDIT') trendMap[d].credit += parseFloat(e.amount || 0);
+      });
       ledgerData.trendData = Object.values(trendMap).sort((a, b) => a.date.localeCompare(b.date)).map(d => ({ ...d, balance: d.credit - d.debit }));
       const accountMap = {};
       entries.forEach(e => { const k = e.account_type || 'General'; if (!accountMap[k]) accountMap[k] = { account: k, debit: 0, credit: 0, entries: 0 }; if (e.transaction_type === 'DEBIT') accountMap[k].debit += parseFloat(e.amount || 0); if (e.transaction_type === 'CREDIT') accountMap[k].credit += parseFloat(e.amount || 0); accountMap[k].entries += 1; });
@@ -879,8 +920,8 @@ const getFinancialReports = async (req, res) => {
 
     const dateParams = [];
     let dateFilter = '';
-    if (dateFrom && dateTo) { dateFilter = ' AND DATE(created_at) BETWEEN ? AND ?'; dateParams.push(dateFrom, dateTo); }
-    else if (year)          { dateFilter = ' AND YEAR(created_at) = ?';             dateParams.push(year); }
+    if (dateFrom && dateTo) { dateFilter = ` AND ${dateColumnInTz('created_at')} BETWEEN ? AND ?`; dateParams.push(dateFrom, dateTo); }
+    else if (year)          { dateFilter = ` AND ${yearColumnInTz('created_at')} = ?`;             dateParams.push(year); }
 
     const scopeParams = [];
     let scopeFilter = '';
@@ -950,8 +991,8 @@ const getFinancialReports = async (req, res) => {
     const allParams = [...dateParams, ...scopeParams];
 
     let scopedDateFilter = '';
-    if (dateFrom && dateTo) { scopedDateFilter = ' AND DATE(s.created_at) BETWEEN ? AND ?'; }
-    else if (year)          { scopedDateFilter = ' AND YEAR(s.created_at) = ?'; }
+    if (dateFrom && dateTo) { scopedDateFilter = ` AND ${dateColumnInTz('s.created_at')} BETWEEN ? AND ?`; }
+    else if (year)          { scopedDateFilter = ` AND ${yearColumnInTz('s.created_at')} = ?`; }
 
     const voucherStatusSql = `AND status IN ('APPROVED', 'PENDING')`;
 

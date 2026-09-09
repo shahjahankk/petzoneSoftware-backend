@@ -1,4 +1,5 @@
 const { pool } = require('../config/database');
+const { dateColumnInTz } = require('../utils/reportDate');
 
 class FinancialVoucher {
   constructor(data) {
@@ -111,12 +112,12 @@ class FinancialVoucher {
       }
 
       if (filters.dateFrom) {
-        query += ' AND DATE(created_at) >= ?';
+        query += ` AND ${dateColumnInTz('created_at')} >= ?`;
         params.push(filters.dateFrom);
       }
 
       if (filters.dateTo) {
-        query += ' AND DATE(created_at) <= ?';
+        query += ` AND ${dateColumnInTz('created_at')} <= ?`;
         params.push(filters.dateTo);
       }
 
@@ -165,12 +166,12 @@ class FinancialVoucher {
       const params = [];
 
       if (filters.dateFrom) {
-        query += ' AND DATE(created_at) >= ?';
+        query += ` AND ${dateColumnInTz('created_at')} >= ?`;
         params.push(filters.dateFrom);
       }
 
       if (filters.dateTo) {
-        query += ' AND DATE(created_at) <= ?';
+        query += ` AND ${dateColumnInTz('created_at')} <= ?`;
         params.push(filters.dateTo);
       }
 
@@ -198,7 +199,7 @@ class FinancialVoucher {
     try {
       let query = `
         SELECT 
-          DATE(created_at) as date,
+          ${dateColumnInTz('created_at')} as date,
           scope_type,
           scope_id,
           payment_method,
@@ -212,12 +213,12 @@ class FinancialVoucher {
       const params = [];
 
       if (filters.dateFrom) {
-        query += ' AND DATE(created_at) >= ?';
+        query += ` AND ${dateColumnInTz('created_at')} >= ?`;
         params.push(filters.dateFrom);
       }
 
       if (filters.dateTo) {
-        query += ' AND DATE(created_at) <= ?';
+        query += ` AND ${dateColumnInTz('created_at')} <= ?`;
         params.push(filters.dateTo);
       }
 
@@ -231,7 +232,7 @@ class FinancialVoucher {
         params.push(filters.scopeId);
       }
 
-      query += ' GROUP BY DATE(created_at), scope_type, scope_id, payment_method ORDER BY date DESC';
+      query += ` GROUP BY ${dateColumnInTz('created_at')}, scope_type, scope_id, payment_method ORDER BY date DESC`;
 
       const [rows] = await pool.execute(query, params);
       return rows;
@@ -256,12 +257,12 @@ class FinancialVoucher {
       const params = [];
 
       if (filters.dateFrom) {
-        query += ' AND DATE(created_at) >= ?';
+        query += ` AND ${dateColumnInTz('created_at')} >= ?`;
         params.push(filters.dateFrom);
       }
 
       if (filters.dateTo) {
-        query += ' AND DATE(created_at) <= ?';
+        query += ` AND ${dateColumnInTz('created_at')} <= ?`;
         params.push(filters.dateTo);
       }
 

@@ -1,4 +1,12 @@
 const { pool } = require('../config/database');
+const { REPORT_TIMEZONE } = require('../utils/reportDate');
+
+const entryOrCreatedAt = `COALESCE(le.entry_date, le.created_at)`;
+const entryOrCreatedDateInTz = `DATE(CONVERT_TZ(${entryOrCreatedAt}, '+00:00', '${REPORT_TIMEZONE}'))`;
+const entryOrCreatedMonthInTz = `MONTH(CONVERT_TZ(${entryOrCreatedAt}, '+00:00', '${REPORT_TIMEZONE}'))`;
+const entryOrCreatedYearInTz = `YEAR(CONVERT_TZ(${entryOrCreatedAt}, '+00:00', '${REPORT_TIMEZONE}'))`;
+const entryOrCreatedAtInTz = `CONVERT_TZ(${entryOrCreatedAt}, '+00:00', '${REPORT_TIMEZONE}')`;
+const nowInTz = `CONVERT_TZ(NOW(), '+00:00', '${REPORT_TIMEZONE}')`;
 
 // @desc    Get stock reports
 // @route   GET /api/stock-reports
@@ -71,12 +79,12 @@ const getStockReports = async (req, res) => {
     }
 
     if (startDate) {
-      whereConditions.push('COALESCE(le.entry_date, le.created_at) >= ?');
+      whereConditions.push(`${entryOrCreatedDateInTz} >= ?`);
       params.push(startDate);
     }
 
     if (endDate) {
-      whereConditions.push('COALESCE(le.entry_date, le.created_at) <= ?');
+      whereConditions.push(`${entryOrCreatedDateInTz} <= ?`);
       params.push(endDate);
     }
     
@@ -304,12 +312,12 @@ const getStockReportStatistics = async (req, res) => {
     }
 
     if (startDate) {
-      whereConditions.push('COALESCE(le.entry_date, le.created_at) >= ?');
+      whereConditions.push(`${entryOrCreatedDateInTz} >= ?`);
       params.push(startDate);
     }
 
     if (endDate) {
-      whereConditions.push('COALESCE(le.entry_date, le.created_at) <= ?');
+      whereConditions.push(`${entryOrCreatedDateInTz} <= ?`);
       params.push(endDate);
     }
 
@@ -388,22 +396,22 @@ const getStockReportStatistics = async (req, res) => {
     
     const dailyWhere =
       whereConditions.length > 0
-        ? `WHERE COALESCE(le.entry_date, le.created_at) >= DATE_SUB(NOW(), INTERVAL 30 DAY) AND ${whereConditions.join(
+        ? `WHERE ${entryOrCreatedAtInTz} >= DATE_SUB(${nowInTz}, INTERVAL 30 DAY) AND ${whereConditions.join(
             ' AND '
           )}`
-        : `WHERE COALESCE(le.entry_date, le.created_at) >= DATE_SUB(NOW(), INTERVAL 30 DAY)`;
+        : `WHERE ${entryOrCreatedAtInTz} >= DATE_SUB(${nowInTz}, INTERVAL 30 DAY)`;
 
     const [dailyActivityResult] = await pool.execute(
       `
       SELECT 
-        DATE(COALESCE(le.entry_date, le.created_at)) as date,
+        ${entryOrCreatedDateInTz} as date,
         COUNT(*) as transaction_count,
         SUM(CASE WHEN le.event_type = 'PURCHASE' THEN le.quantity_in ELSE 0 END) as purchased,
         SUM(CASE WHEN le.event_type = 'SALE' THEN le.quantity_out ELSE 0 END) as sold,
         SUM(CASE WHEN le.event_type = 'RETURN' THEN le.quantity_in ELSE 0 END) as returned
       ${ledgerJoin}
       ${dailyWhere}
-      GROUP BY DATE(COALESCE(le.entry_date, le.created_at))
+      GROUP BY ${entryOrCreatedDateInTz}
       ORDER BY date DESC
       LIMIT 30
     `,
@@ -659,7 +667,7 @@ const getProductStockHistory = async (req, res) => {
     
     const [dailyMovementsResult] = await pool.execute(`
       SELECT 
-        DATE(COALESCE(le.entry_date, le.created_at)) as date,
+        ${entryOrCreatedDateInTz} as date,
         SUM(CASE WHEN le.event_type = 'PURCHASE' THEN le.quantity_in ELSE 0 END) as purchased,
         SUM(CASE WHEN le.event_type = 'SALE' THEN le.quantity_out ELSE 0 END) as sold,
         SUM(CASE WHEN le.event_type = 'RETURN' THEN le.quantity_in ELSE 0 END) as returned,
@@ -669,15 +677,15 @@ const getProductStockHistory = async (req, res) => {
       INNER JOIN inventory_items ii ON ii.id = le.inventory_item_id
         AND le.scope_type = ii.scope_type
         AND (CAST(le.scope_id AS CHAR) COLLATE utf8mb4_bin = CAST(ii.scope_id AS CHAR) COLLATE utf8mb4_bin)
-      WHERE le.inventory_item_id = ? AND COALESCE(le.entry_date, le.created_at) >= DATE_SUB(NOW(), INTERVAL 30 DAY)
-      GROUP BY DATE(COALESCE(le.entry_date, le.created_at))
+      WHERE le.inventory_item_id = ? AND ${entryOrCreatedAtInTz} >= DATE_SUB(${nowInTz}, INTERVAL 30 DAY)
+      GROUP BY ${entryOrCreatedDateInTz}
       ORDER BY date DESC
     `, [id]);
 
     const [monthlyMovementsResult] = await pool.execute(`
       SELECT 
-        YEAR(COALESCE(le.entry_date, le.created_at)) as year,
-        MONTH(COALESCE(le.entry_date, le.created_at)) as month,
+        ${entryOrCreatedYearInTz} as year,
+        ${entryOrCreatedMonthInTz} as month,
         SUM(CASE WHEN le.event_type = 'PURCHASE' THEN le.quantity_in ELSE 0 END) as purchased,
         SUM(CASE WHEN le.event_type = 'SALE' THEN le.quantity_out ELSE 0 END) as sold,
         SUM(CASE WHEN le.event_type = 'RETURN' THEN le.quantity_in ELSE 0 END) as returned,
@@ -687,8 +695,8 @@ const getProductStockHistory = async (req, res) => {
       INNER JOIN inventory_items ii ON ii.id = le.inventory_item_id
         AND le.scope_type = ii.scope_type
         AND (CAST(le.scope_id AS CHAR) COLLATE utf8mb4_bin = CAST(ii.scope_id AS CHAR) COLLATE utf8mb4_bin)
-      WHERE le.inventory_item_id = ? AND COALESCE(le.entry_date, le.created_at) >= DATE_SUB(NOW(), INTERVAL 12 MONTH)
-      GROUP BY YEAR(COALESCE(le.entry_date, le.created_at)), MONTH(COALESCE(le.entry_date, le.created_at))
+      WHERE le.inventory_item_id = ? AND ${entryOrCreatedAtInTz} >= DATE_SUB(${nowInTz}, INTERVAL 12 MONTH)
+      GROUP BY ${entryOrCreatedYearInTz}, ${entryOrCreatedMonthInTz}
       ORDER BY year DESC, month DESC
     `, [id]);
     

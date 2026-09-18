@@ -17,7 +17,7 @@ const cookieParser = require('cookie-parser');
 require('dotenv').config();
 
 const errorHandler = require('./middleware/errorHandler');
-const { connectDB, closeDB } = require('./config/database');
+const { connectDB, closeDB, pool } = require('./config/database');
 const auth = require('./middleware/auth');
 const adminSimulation = require('./middleware/adminSimulation');
 
@@ -165,13 +165,28 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 
 // Health check
-app.get('/api/health', (req, res) => {
-  res.status(200).json({
-    success: true,
-    message: 'Server is running',
+app.get('/api/health', async (req, res) => {
+  const db = { connected: false, host: process.env.DB_HOST || 'localhost', database: process.env.DB_NAME || null };
+  try {
+    const conn = await pool.getConnection();
+    try {
+      const [rows] = await conn.query('SELECT 1 AS ok');
+      db.connected = rows[0]?.ok === 1;
+    } finally {
+      conn.release();
+    }
+  } catch (error) {
+    db.connected = false;
+    db.error = error && error.code ? `${error.code}: ${error.message}` : (error && error.message);
+  }
+
+  res.status(db.connected ? 200 : 503).json({
+    success: db.connected,
+    message: db.connected ? 'Server is running' : 'Server running, database unavailable',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV,
-    uptime: process.uptime()
+    uptime: process.uptime(),
+    database: db
   });
 });
 

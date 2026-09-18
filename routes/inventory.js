@@ -22,6 +22,7 @@ router.get('/cross-branch', rbac('ADMIN', 'WAREHOUSE_KEEPER', 'CASHIER'), checkC
 router.get('/changes', rbac('ADMIN', 'WAREHOUSE_KEEPER', 'CASHIER'), inventoryController.getLatestInventoryChanges);
 router.get('/changes/since', rbac('ADMIN', 'WAREHOUSE_KEEPER', 'CASHIER'), inventoryController.getInventoryChangesSince);
 router.get('/summary', rbac('ADMIN', 'WAREHOUSE_KEEPER', 'CASHIER'), inventoryController.getSummary);
+router.get('/valuation', requireAdmin, inventoryController.getInventoryValuation);
 router.get('/excel-template', hasInventoryAccess, excelImportController.getExcelTemplate);
 router.get('/export-excel', hasInventoryAccess, excelImportController.exportInventoryExcel);
 router.get('/:id', rbac('ADMIN', 'WAREHOUSE_KEEPER', 'CASHIER'), inventoryController.getInventoryItem);

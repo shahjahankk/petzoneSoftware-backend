@@ -106,6 +106,7 @@ function mapJoinedRowToLedgerShape(row) {
     paid_amount: actualPayment,
     running_balance: cumBalance,
     balance: cumBalance,
+    postedAt: row.ledger_posted_at ?? row.created_at ?? null,
   };
 }
 
@@ -125,6 +126,7 @@ function buildTransactionSelectSql() {
     s.scope_id,
     COALESCE(s.sale_date, s.created_at) AS transaction_date,
     s.created_at AS created_at,
+    e.created_at AS ledger_posted_at,
     ${LEDGER_SORT_AT_S} AS sort_at,
     s.payment_method,
     s.payment_type,

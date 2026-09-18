@@ -80,9 +80,32 @@ const createSettlement = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Scope is required' });
     }
 
-    await connection.beginTransaction();
-    const scopeName = await resolveScopeName(connection, roleScope.scopeType, roleScope.scopeId);
+    // Resolve scope name BEFORE the transaction so the row lock below is
+    // genuinely the first statement in the tx (any earlier read would pin the
+    // REPEATABLE READ snapshot before the lock is taken).
+    const scopeName = await resolveScopeName(pool, roleScope.scopeType, roleScope.scopeId);
     if (!scopeName) throw new Error('Scope not found');
+
+    await connection.beginTransaction();
+
+    // Serialize concurrent settlements for the same party+scope. Run as a
+    // locking read (FOR UPDATE) on the party's most recent sales row so a
+    // REPEATABLE READ snapshot is only established after the lock is held;
+    // otherwise two overlapping requests could both pass the balance check
+    // and double-settle the outstanding.
+    if (retailerId != null && retailerId !== '') {
+      await connection.execute(
+        `SELECT id FROM sales WHERE deleted_at IS NULL AND scope_type = ? AND scope_id = ? AND retailer_id = ?
+         LIMIT 1 FOR UPDATE`,
+        [roleScope.scopeType, scopeName, parseInt(retailerId, 10)]
+      );
+    }
+    await connection.execute(
+      `SELECT id FROM sales WHERE deleted_at IS NULL AND scope_type = ? AND scope_id = ? AND
+       (TRIM(IFNULL(customer_phone,'')) = TRIM(?) OR LOWER(TRIM(IFNULL(customer_name,''))) = LOWER(TRIM(?)))
+       LIMIT 1 FOR UPDATE`,
+      [roleScope.scopeType, scopeName, customerPhone || '', customerName || '']
+    );
 
     const invoiceNo = await InvoiceNumberService.generateSettlementNumber(roleScope.scopeType, roleScope.scopeId);
     const migrationDone = await isLedgerMigrationComplete(connection);
@@ -93,6 +116,13 @@ const createSettlement = async (req, res, next) => {
       scopeType: roleScope.scopeType,
       scopeName,
     });
+    if (amount > oldBalance + 0.01) {
+      await connection.rollback();
+      return res.status(400).json({
+        success: false,
+        message: `Payment exceeds outstanding balance of ${Number(oldBalance).toFixed(2)}`
+      });
+    }
     const newRunningBalance = oldBalance - amount;
 
     const insertOldBal = migrationDone ? 0 : oldBalance;

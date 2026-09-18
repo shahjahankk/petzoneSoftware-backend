@@ -179,10 +179,20 @@ const refresh = async (req, res, next) => {
 // @access  Private
 const getMe = async (req, res, next) => {
   try {
+    let safeUser = req.user;
+    if (req.user && typeof req.user.toJSON === 'function') {
+      safeUser = await req.user.toJSON();
+    } else if (req.user && typeof req.user === 'object') {
+      safeUser = { ...req.user };
+      delete safeUser.password;
+      delete safeUser.password_hash;
+      delete safeUser.refresh_token;
+      delete safeUser.refreshToken;
+    }
     res.json({
       success: true,
       data: {
-        user: req.user
+        user: safeUser
       }
     });
   } catch (error) {

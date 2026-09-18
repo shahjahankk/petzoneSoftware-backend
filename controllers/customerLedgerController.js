@@ -10,6 +10,12 @@ const {
 
 function ledgerInstantMs(row) {
   if (row == null) return 0;
+  // Ledger entries carry their own posting time; prefer it over sale created_at
+  const postedAt = row.ledger_posted_at ?? row.postedAt;
+  if (postedAt != null) {
+    const t = new Date(postedAt).getTime();
+    if (!Number.isNaN(t)) return t;
+  }
   if (row.sort_at != null) {
     const t = new Date(row.sort_at).getTime();
     if (!Number.isNaN(t)) return t;

@@ -10,9 +10,30 @@ const { getPosCustomerBalance } = require('../services/posCustomerBalanceService
 const { isLedgerMigrationComplete } = require('../services/ledgerMigrationMeta');
 const {
   getIdempotentResponse,
-  setIdempotentResponse,
+  claimIdempotencyKey,
+  completeIdempotencyKey,
+  failIdempotencyKey,
 } = require('../utils/idempotencyMemoryCache');
 const { resolveSaleTimestamps } = require('../utils/saleDateUtils');
+
+async function resolveWarehouseTaxRate(scopeId) {
+  const fallback = Number(process.env.SALES_TAX_RATE);
+  const fallbackRate = Number.isFinite(fallback) && fallback >= 0 ? fallback : 0;
+  if (scopeId == null) return fallbackRate;
+
+  const [rows] = await pool.execute(
+    'SELECT settings FROM warehouses WHERE id = ? OR name = ? LIMIT 1',
+    [scopeId, String(scopeId)]
+  );
+  if (!rows.length || !rows[0].settings) return fallbackRate;
+
+  let settings = rows[0].settings;
+  if (typeof settings === 'string') {
+    try { settings = JSON.parse(settings); } catch (_) { return fallbackRate; }
+  }
+  const configured = Number(settings?.taxRate ?? settings?.tax_rate);
+  return Number.isFinite(configured) && configured >= 0 ? configured : fallbackRate;
+}
 
 // @desc    Create warehouse sale to retailer
 // @route   POST /api/warehouse-sales
@@ -30,7 +51,7 @@ const createWarehouseSale = async (req, res, next) => {
     }
 
     const idempotencyKey = req.get('Idempotency-Key') || req.get('idempotency-key');
-    const replayBody = getIdempotentResponse(idempotencyKey);
+    const replayBody = await getIdempotentResponse(idempotencyKey);
     if (replayBody) {
       res.set('X-Idempotent-Replay', 'true');
       return res.status(200).json(replayBody);
@@ -344,15 +365,22 @@ const createWarehouseSale = async (req, res, next) => {
     
     // Validate subtotal matches calculated subtotal (allow small rounding differences)
     if (Math.abs(normalizedSubtotal - calculatedSubtotal) > 0.01) {
-    }
-
-    const normalizedTaxAmount = parseNumber(taxAmount, parseNumber(tax, 0));
-    if (normalizedTaxAmount < 0) {
       return res.status(400).json({
         success: false,
-        message: 'Tax amount cannot be negative'
+        message: 'Subtotal does not match sale items'
       });
     }
+
+    const taxRate = await resolveWarehouseTaxRate(scopeWarehouseId || req.user.warehouseId);
+    const calculatedTaxAmount = Math.round(normalizedSubtotal * (taxRate / 100) * 100) / 100;
+    const requestedTaxAmount = parseNumber(taxAmount, parseNumber(tax, calculatedTaxAmount));
+    if (requestedTaxAmount < 0 || Math.abs(requestedTaxAmount - calculatedTaxAmount) > 0.01) {
+      return res.status(400).json({
+        success: false,
+        message: 'Tax amount does not match the configured tax rate'
+      });
+    }
+    const normalizedTaxAmount = calculatedTaxAmount;
 
     const normalizedDiscountAmount = parseNumber(discountAmount, parseNumber(discount, 0));
     if (normalizedDiscountAmount < 0) {
@@ -367,6 +395,10 @@ const createWarehouseSale = async (req, res, next) => {
     
     // Validate bill amount
     if (Math.abs(normalizedBillAmount - calculatedBillAmount) > 0.01) {
+      return res.status(400).json({
+        success: false,
+        message: 'Bill amount does not match sale totals'
+      });
     }
 
     const normalizedTotalWithOutstanding = parseNumber(
@@ -714,6 +746,28 @@ const [settlementInsert] = await pool.execute(`
 }
 
 // ========== CREATE SALE AND UPDATE BALANCE ==========
+let idempotencyClaimed = false;
+if (idempotencyKey) {
+  try {
+    const claim = await claimIdempotencyKey(idempotencyKey);
+    if (claim.status === 'replay') {
+      res.set('X-Idempotent-Replay', 'true');
+      return res.status(200).json(claim.body);
+    }
+    if (claim.status === 'in_progress') {
+      return res.status(409).json({
+        success: false,
+        message: 'A request with this Idempotency-Key is already in progress'
+      });
+    }
+    if (claim.status === 'claimed') {
+      idempotencyClaimed = true;
+    }
+  } catch (idemErr) {
+    // Storage unavailable: proceed (memory guard in the top-level replay check
+    // still protects single-instance double submits).
+  }
+}
 const warehouseSale = await WarehouseSale.create(
       saleData,
       finalCustomerInfo.name,
@@ -754,12 +808,15 @@ const warehouseSale = await WarehouseSale.create(
       message: isReturnTransaction ? 'Return transaction processed successfully' : 'Warehouse sale created successfully',
       data: saleResponse
     };
-    if (idempotencyKey) {
-      setIdempotentResponse(idempotencyKey, responseBody);
+    if (idempotencyKey && idempotencyClaimed) {
+      await completeIdempotencyKey(idempotencyKey, responseBody);
     }
     res.status(201).json(responseBody);
 
   } catch (error) {
+    if (idempotencyKey && idempotencyClaimed) {
+      try { await failIdempotencyKey(idempotencyKey); } catch (_) { /* best-effort */ }
+    }
     next(error);
   }
 };

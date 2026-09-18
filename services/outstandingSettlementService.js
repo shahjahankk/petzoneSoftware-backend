@@ -66,6 +66,24 @@ async function applyOutstandingSettlement(connection, params) {
     balanceParams.push(customerName.trim(), customerName.trim());
   }
 
+  // Serialize concurrent settlements for the same party+scope: acquire the row
+  // lock on the party's most recent sales row BEFORE any consistent read in
+  // this transaction. Under REPEATABLE READ a plain SELECT establishes a read
+  // snapshot, so the lock must be the first statement; the subsequent balance
+  // SUM then sees any settlement committed by a blocked transaction.
+  const [historyProbe] = await connection.execute(
+    `SELECT id FROM sales WHERE deleted_at IS NULL AND ${customerMatchClause}
+     ${applyScopeFilter && scopeType && scopeName ? 'AND scope_type = ? AND scope_id = ?' : ''}
+     LIMIT 1 FOR UPDATE`,
+    applyScopeFilter && scopeType && scopeName
+      ? [...balanceParams, scopeType, scopeName]
+      : balanceParams
+  );
+
+  if (historyProbe.length === 0) {
+    throw badRequest('No transaction history found for this customer in your store');
+  }
+
   const migrated = await isLedgerMigrationComplete(connection);
   let latestRunningBalance;
   if (migrated) {
@@ -97,19 +115,6 @@ async function applyOutstandingSettlement(connection, params) {
       scopeType,
       scopeName
     );
-  }
-
-  const [historyProbe] = await connection.execute(
-    `SELECT id FROM sales WHERE deleted_at IS NULL AND ${customerMatchClause}
-     ${applyScopeFilter && scopeType && scopeName ? 'AND scope_type = ? AND scope_id = ?' : ''}
-     LIMIT 1`,
-    applyScopeFilter && scopeType && scopeName
-      ? [...balanceParams, scopeType, scopeName]
-      : balanceParams
-  );
-
-  if (historyProbe.length === 0) {
-    throw badRequest('No transaction history found for this customer in your store');
   }
 
   if (Math.abs(latestRunningBalance) <= 0.01) {

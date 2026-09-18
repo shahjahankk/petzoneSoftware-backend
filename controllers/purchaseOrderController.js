@@ -4,6 +4,7 @@ const { executeQuery, pool } = require('../config/database');
 const { createStockReportEntry } = require('../middleware/stockTracking');
 const trashService = require('../services/trashService');
 const { normalizeScope } = require('../services/inventoryLedgerService');
+const { addEntry, recordPurchaseOrder } = require('../services/companyLedgerService');
 const InventoryProjection = require('../services/inventoryProjectionService');
 const { generateUniqueSku } = require('../services/skuGeneratorService');
 
@@ -15,6 +16,7 @@ const { generateUniqueSku } = require('../services/skuGeneratorService');
 // ─────────────────────────────────────────────────────────────────────────────
 
 const OPEN_PO_STATUSES = new Set(['PENDING', 'ORDERED']);
+const COMPANY_PAYMENT_METHODS = new Set(['CREDIT', 'CASH', 'CARD', 'BANK_TRANSFER', 'CHEQUE']);
 
 const isOpenPurchaseOrderStatus = (status) =>
   OPEN_PO_STATUSES.has(String(status || '').trim().toUpperCase());
@@ -74,22 +76,31 @@ const getPurchaseOrder = async (req, res, next) => {
 };
 
 const createPurchaseOrder = async (req, res, next) => {
+  let createdPurchaseOrderId = null;
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ success: false, message: 'Validation error', errors: errors.array() });
-    const { supplierId, scopeType, scopeId, orderDate, expectedDelivery, notes, items } = req.body;
+    const { supplierId, scopeType, scopeId, orderDate, expectedDelivery, notes, items,
+      paymentMethod = 'CREDIT', paidAmount = 0 } = req.body;
     if (!supplierId || !items || items.length === 0)
       return res.status(400).json({ success: false, message: 'Supplier ID and items are required' });
+    const normalizedPaymentMethod = String(paymentMethod).toUpperCase();
+    if (!COMPANY_PAYMENT_METHODS.has(normalizedPaymentMethod))
+      return res.status(400).json({ success: false, message: 'Invalid supplier payment category' });
     let finalScopeType = scopeType, finalScopeId = scopeId;
     if (req.user.role === 'WAREHOUSE_KEEPER') { finalScopeType = 'WAREHOUSE'; finalScopeId = req.user.warehouseId; }
     else if (req.user.role === 'CASHIER') { finalScopeType = 'BRANCH'; finalScopeId = req.user.branchId; }
     const orderNumber = await PurchaseOrder.generateOrderNumber(finalScopeType, finalScopeId);
     const totalAmount = items.reduce((t, i) => t + (i.quantityOrdered * i.unitPrice), 0);
+    const normalizedPaidAmount = Math.max(0, Math.min(Number(paidAmount) || 0, totalAmount));
+    const paymentStatus = normalizedPaidAmount >= totalAmount ? 'PAID' : normalizedPaidAmount > 0 ? 'PARTIAL' : 'CREDIT';
     const purchaseOrder = await PurchaseOrder.create({
       orderNumber, supplierId, scopeType: finalScopeType, scopeId: finalScopeId,
       orderDate: orderDate || new Date().toISOString().split('T')[0],
-      expectedDelivery, status: 'PENDING', totalAmount, notes, createdBy: req.user.id
+      expectedDelivery, status: 'PENDING', totalAmount, notes, createdBy: req.user.id,
+      paymentMethod: normalizedPaymentMethod, paidAmount: normalizedPaidAmount, paymentStatus
     });
+    createdPurchaseOrderId = purchaseOrder.id;
     const reservedSkus = new Set();
     for (const item of items) {
       // SKU is backend-owned: never trust incoming itemSku from API payload.
@@ -122,9 +133,26 @@ const createPurchaseOrder = async (req, res, next) => {
         notes: item.notes || null
       });
     }
+    await recordPurchaseOrder({ purchaseOrder, paymentMethod: normalizedPaymentMethod, paidAmount: normalizedPaidAmount, createdBy: req.user.id });
     const completeOrder = await PurchaseOrder.findById(purchaseOrder.id);
     res.status(201).json({ success: true, message: 'Purchase order created successfully', data: completeOrder });
   } catch (error) {
+    if (createdPurchaseOrderId) {
+      try {
+        await executeQuery(
+          "DELETE FROM company_ledger_entries WHERE reference_type = 'PURCHASE_ORDER' AND reference_id = ?",
+          [String(createdPurchaseOrderId)]
+        );
+      } catch (cleanupError) {
+        console.error('[PurchaseOrder] ledger cleanup failed:', cleanupError.message);
+      }
+      try {
+        await executeQuery('DELETE FROM purchase_order_items WHERE purchase_order_id = ?', [createdPurchaseOrderId]);
+        await executeQuery('DELETE FROM purchase_orders WHERE id = ?', [createdPurchaseOrderId]);
+      } catch (cleanupError) {
+        console.error('[PurchaseOrder] create cleanup failed:', cleanupError.message);
+      }
+    }
     res.status(500).json({ success: false, message: 'Error creating purchase order', error: error.message });
   }
 };
@@ -140,6 +168,20 @@ const updatePurchaseOrderStatus = async (req, res, next) => {
     if (req.user.role !== 'ADMIN') return res.status(403).json({ success: false, message: 'Only admins can update order status' });
     if (!isOpenPurchaseOrderStatus(purchaseOrder.status))
       return res.status(400).json({ success: false, message: 'Only pending or ordered purchase orders can be updated' });
+    if (status === 'CANCELLED') {
+      await addEntry({
+        companyId: purchaseOrder.supplierId,
+        scopeType: purchaseOrder.scopeType,
+        scopeId: purchaseOrder.scopeId,
+        entryType: 'ADJUSTMENT',
+        referenceType: 'PURCHASE_ORDER_CANCEL',
+        referenceId: String(id),
+        creditAmount: Number(purchaseOrder.totalAmount) || 0,
+        description: `Cancelled purchase ${purchaseOrder.orderNumber}`,
+        entryDate: new Date().toISOString().split('T')[0],
+        createdBy: req.user.id
+      });
+    }
     const updatedOrder = await PurchaseOrder.updateStatus(id, status, status === 'COMPLETED' ? (actualDelivery || new Date().toISOString().split('T')[0]) : null);
     if (status === 'COMPLETED') {
       const orderItems = await PurchaseOrderItem.findByOrderId(id);
@@ -165,6 +207,18 @@ const deletePurchaseOrder = async (req, res, next) => {
     if (!isOpenPurchaseOrderStatus(purchaseOrder.status))
       return res.status(400).json({ success: false, message: 'Only pending or ordered purchase orders can be deleted' });
     await trashService.softDelete('purchase_order', id, req.user.id);
+    await addEntry({
+      companyId: purchaseOrder.supplierId,
+      scopeType: purchaseOrder.scopeType,
+      scopeId: purchaseOrder.scopeId,
+      entryType: 'ADJUSTMENT',
+      referenceType: 'PURCHASE_ORDER_DELETE',
+      referenceId: String(id),
+      creditAmount: Number(purchaseOrder.totalAmount) || 0,
+      description: `Deleted purchase ${purchaseOrder.orderNumber}`,
+      entryDate: new Date().toISOString().split('T')[0],
+      createdBy: req.user.id
+    });
     res.json({ success: true, message: 'Moved to trash' });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error deleting purchase order', error: error.message });
@@ -376,13 +430,60 @@ const updatePurchaseOrder = async (req, res, next) => {
     if (!hasScopedAccess(purchaseOrder, req.user))
       return res.status(403).json({ success: false, message: 'Access denied' });
 
-    const { supplierId, orderDate, expectedDelivery, notes, items } = req.body;
+    const oldTotalAmount = Number(purchaseOrder.totalAmount) || 0;
+    const oldPaidAmount = Number(purchaseOrder.paidAmount) || 0;
+    const oldSupplierId = purchaseOrder.supplierId;
+    const { supplierId, orderDate, expectedDelivery, notes, items, paymentMethod, paidAmount } = req.body;
     if (supplierId) purchaseOrder.supplierId = supplierId;
     if (orderDate) purchaseOrder.orderDate = orderDate;
     if (expectedDelivery !== undefined) purchaseOrder.expectedDelivery = expectedDelivery;
     if (notes !== undefined) purchaseOrder.notes = notes;
     if (items?.length > 0) purchaseOrder.totalAmount = items.reduce((t, i) => t + (i.quantityOrdered * i.unitPrice), 0);
+    if (paymentMethod) {
+      purchaseOrder.paymentMethod = String(paymentMethod).toUpperCase();
+      if (!COMPANY_PAYMENT_METHODS.has(purchaseOrder.paymentMethod))
+        return res.status(400).json({ success: false, message: 'Invalid supplier payment category' });
+    }
+    if (paidAmount !== undefined) purchaseOrder.paidAmount = Math.max(0, Math.min(Number(paidAmount) || 0, Number(purchaseOrder.totalAmount) || 0));
+    purchaseOrder.paymentStatus = purchaseOrder.paidAmount >= Number(purchaseOrder.totalAmount || 0)
+      ? 'PAID' : purchaseOrder.paidAmount > 0 ? 'PARTIAL' : 'CREDIT';
     await purchaseOrder.save();
+
+    const supplierChanged = Number(oldSupplierId) !== Number(purchaseOrder.supplierId);
+    if (supplierChanged) {
+      await addEntry({
+        companyId: oldSupplierId, scopeType: purchaseOrder.scopeType, scopeId: purchaseOrder.scopeId,
+        entryType: 'ADJUSTMENT', referenceType: 'PURCHASE_ORDER_SUPPLIER_CHANGE', referenceId: `${id}-OLD-${Date.now()}`,
+        debitAmount: oldPaidAmount, creditAmount: oldTotalAmount,
+        description: `Reversed supplier assignment for ${purchaseOrder.orderNumber}`, entryDate: purchaseOrder.orderDate, createdBy: req.user.id
+      });
+      await addEntry({
+        companyId: purchaseOrder.supplierId, scopeType: purchaseOrder.scopeType, scopeId: purchaseOrder.scopeId,
+        entryType: 'ADJUSTMENT', referenceType: 'PURCHASE_ORDER_SUPPLIER_CHANGE', referenceId: `${id}-NEW-${Date.now()}`,
+        debitAmount: Number(purchaseOrder.totalAmount) || 0, creditAmount: Number(purchaseOrder.paidAmount) || 0,
+        paymentMethod: purchaseOrder.paymentMethod,
+        description: `Assigned supplier for ${purchaseOrder.orderNumber}`, entryDate: purchaseOrder.orderDate, createdBy: req.user.id
+      });
+    }
+    const totalDelta = supplierChanged ? 0 : (Number(purchaseOrder.totalAmount) || 0) - oldTotalAmount;
+    const paidDelta = supplierChanged ? 0 : (Number(purchaseOrder.paidAmount) || 0) - oldPaidAmount;
+    if (totalDelta !== 0) {
+      await addEntry({
+        companyId: purchaseOrder.supplierId, scopeType: purchaseOrder.scopeType, scopeId: purchaseOrder.scopeId,
+        entryType: 'ADJUSTMENT', referenceType: 'PURCHASE_ORDER_EDIT', referenceId: `${id}-TOTAL-${Date.now()}`,
+        debitAmount: totalDelta > 0 ? totalDelta : 0, creditAmount: totalDelta < 0 ? Math.abs(totalDelta) : 0,
+        description: `Purchase order ${purchaseOrder.orderNumber} total adjustment`, entryDate: purchaseOrder.orderDate, createdBy: req.user.id
+      });
+    }
+    if (paidDelta !== 0) {
+      await addEntry({
+        companyId: purchaseOrder.supplierId, scopeType: purchaseOrder.scopeType, scopeId: purchaseOrder.scopeId,
+        entryType: 'ADJUSTMENT', referenceType: 'PURCHASE_ORDER_EDIT', referenceId: `${id}-PAID-${Date.now()}`,
+        debitAmount: paidDelta < 0 ? Math.abs(paidDelta) : 0, creditAmount: paidDelta > 0 ? paidDelta : 0,
+        paymentMethod: purchaseOrder.paymentMethod,
+        description: `Purchase order ${purchaseOrder.orderNumber} payment adjustment`, entryDate: purchaseOrder.orderDate, createdBy: req.user.id
+      });
+    }
 
     if (items?.length > 0) {
       const isCompleted = ['COMPLETED', 'DELIVERED', 'APPROVED'].includes(purchaseOrder.status);

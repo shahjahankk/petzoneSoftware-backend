@@ -211,12 +211,27 @@ const updateAnyInventory = async (req, res, next) => {
     const { id } = req.params;
     const updateData = req.body;
     
+    // Whitelist updatable columns — the request body keys are interpolated into
+    // the SQL string, so ANY un-whitelisted key is a SQL injection vector.
+    const ALLOWED_COLUMNS = new Set([
+      'name', 'sku', 'barcode', 'category', 'description',
+      'unit', 'selling_price', 'cost_price', 'purchase_price',
+      'min_stock_level', 'max_stock_level', 'reorder_level',
+      'supplier_id', 'tax_rate', 'status', 'notes'
+    ]);
+    
     // Build dynamic update query
     const updateFields = [];
     const values = [];
     
     Object.keys(updateData).forEach(key => {
       if (updateData[key] !== undefined) {
+        if (!ALLOWED_COLUMNS.has(key)) {
+          return res.status(400).json({
+            success: false,
+            message: `Column not allowed: ${key}`
+          });
+        }
         updateFields.push(`${key} = ?`);
         values.push(updateData[key]);
       }

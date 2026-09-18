@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const { accessSecret } = require('../utils/jwt');
 
 const auth = async (req, res, next) => {
   try {
@@ -13,7 +14,7 @@ const auth = async (req, res, next) => {
     }
 
     const token = authHeader.substring(7); // Remove 'Bearer ' prefix
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key-for-development');
+    const decoded = jwt.verify(token, accessSecret());
     
     try {
       const user = await User.findById(decoded.userId);
@@ -35,17 +36,13 @@ const auth = async (req, res, next) => {
       req.user = user;
       next();
     } catch (dbError) {
-      
-      // If database is not accessible, create a minimal user object from token
-      req.user = {
-        id: decoded.userId,
-        username: decoded.username || 'admin',
-        email: decoded.email || 'admin@multipos.com',
-        role: decoded.role || 'ADMIN',
-        status: 'ACTIVE'
-      };
-      
-      next();
+      // Fail closed: never fabricate a user (especially not an ADMIN) when the
+      // database is unavailable. Treating any token as a full admin on a DB
+      // blip is a privilege escalation. Return 503 so the client retries.
+      return res.status(503).json({
+        success: false,
+        message: 'Unavailable: could not verify user. Please try again.'
+      });
     }
   } catch (error) {
     if (error.name === 'JsonWebTokenError') {

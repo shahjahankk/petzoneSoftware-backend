@@ -8,6 +8,7 @@ const trashService = require('../services/trashService');
 const { getBatchItemSummaries, normalizeScope, ledgerScopedQuantitySubquery } = require('../services/inventoryLedgerService');
 const InventoryProjection = require('../services/inventoryProjectionService');
 const { generateUniqueSku } = require('../services/skuGeneratorService');
+const { getWeightedAverageValuation } = require('../services/inventoryValuationService');
 
 // Helper to normalise date strings to YYYY-MM-DD
 const normalizeDateInput = (value) => {
@@ -1012,6 +1013,17 @@ const getSummary = async (req, res, next) => {
   }
 };
 
+const getInventoryValuation = async (req, res) => {
+  try {
+    const { scopeType, scopeId, asOfDate } = req.query;
+    const rows = await getWeightedAverageValuation({ scopeType, scopeId, asOfDate });
+    const totalValue = rows.reduce((sum, row) => sum + row.inventoryValue, 0);
+    res.json({ success: true, data: { method: 'WEIGHTED_AVERAGE', totalValue, items: rows } });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error calculating inventory valuation', error: error.message });
+  }
+};
+
 // @desc    Get inventory changes since timestamp
 // @route   GET /api/inventory/changes/since
 // @access  Private (Admin, Warehouse Keeper, Cashier)
@@ -1336,6 +1348,7 @@ module.exports = {
   getLowStockItems,
   updateQuantity,
   getSummary,
+  getInventoryValuation,
   getLatestInventoryChanges,
   getInventoryChangesSince,
   getCrossBranchInventory,

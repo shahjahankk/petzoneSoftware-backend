@@ -8,14 +8,62 @@ const InvoiceNumberService = require('../../services/invoiceNumberService');
 const { isLedgerMigrationComplete } = require('../../services/ledgerMigrationMeta');
 const {
   getIdempotentResponse,
-  setIdempotentResponse,
+  claimIdempotencyKey,
+  completeIdempotencyKey,
+  failIdempotencyKey,
 } = require('../../utils/idempotencyMemoryCache');
 const { getCustomerRunningBalance } = require('../../services/sales/customerRunningBalance');
 const { applyOutstandingSettlement } = require('../../services/outstandingSettlementService');
 const CustomerLedgerEntries = require('../../services/customerLedgerEntriesService');
 const { allowsNegativeStock } = require('../../config/inventory');
 
+async function resolveSalesTaxRate(scopeType, scopeId) {
+  const configuredFallback = Number(process.env.SALES_TAX_RATE);
+  const fallbackRate = Number.isFinite(configuredFallback) && configuredFallback >= 0
+    ? configuredFallback
+    : 0;
+
+  if (String(scopeType || '').toUpperCase() !== 'BRANCH' || scopeId == null) {
+    return fallbackRate;
+  }
+
+  const [rows] = await pool.execute(
+    'SELECT settings FROM branches WHERE id = ? OR name = ? LIMIT 1',
+    [scopeId, String(scopeId)]
+  );
+  if (!rows.length || !rows[0].settings) return fallbackRate;
+
+  let settings = rows[0].settings;
+  if (typeof settings === 'string') {
+    try { settings = JSON.parse(settings); } catch (_) { return fallbackRate; }
+  }
+
+  const configuredRate = Number(settings?.taxRate ?? settings?.tax_rate);
+  return Number.isFinite(configuredRate) && configuredRate >= 0
+    ? configuredRate
+    : fallbackRate;
+}
+
+/**
+ * H8: never trust body-supplied scope for scoped roles. A CASHIER may only
+ * write to their own branch and a WAREHOUSE_KEEPER only to their own
+ * warehouse; only ADMIN may choose an arbitrary scope.
+ */
+function resolveEffectiveSaleScope(user, bodyScopeType, bodyScopeId) {
+  const role = String(user?.role || '').toUpperCase();
+  if (role === 'CASHIER') {
+    return { scopeType: 'BRANCH', scopeId: user.branchId ?? bodyScopeId };
+  }
+  if (role === 'WAREHOUSE_KEEPER') {
+    return { scopeType: 'WAREHOUSE', scopeId: user.warehouseId ?? bodyScopeId };
+  }
+  return { scopeType: bodyScopeType, scopeId: bodyScopeId };
+}
+
 const createSale = async (req, res, next) => {
+  let idempotencyClaimed = false;
+  let autoCreatedCustomerId = null;
+  const idempotencyKey = req.get('Idempotency-Key') || req.get('idempotency-key');
   
   try {
     const errors = validationResult(req);
@@ -27,14 +75,18 @@ const createSale = async (req, res, next) => {
       });
     }
 
-    const idempotencyKey = req.get('Idempotency-Key') || req.get('idempotency-key');
-    const replayBody = getIdempotentResponse(idempotencyKey);
+    const replayBody = await getIdempotentResponse(idempotencyKey);
     if (replayBody) {
       res.set('X-Idempotent-Replay', 'true');
       return res.status(200).json(replayBody);
     }
 
-    const { items, scopeType, scopeId, paymentMethod, paymentType, customerInfo, notes, subtotal, tax, discount, total, paymentStatus, status, paymentAmount, creditAmount, creditStatus, outstandingPayments, selectedOutstandingPayments, saleDate } = req.body;
+    const { items, scopeType: bodyScopeType, scopeId: bodyScopeId, paymentMethod, paymentType, customerInfo, notes, subtotal, tax, discount, total, paymentStatus, status, paymentAmount, creditAmount, creditStatus, outstandingPayments, selectedOutstandingPayments, saleDate } = req.body;
+
+    // H8: reconcile scope against the authenticated role (IDOR guard).
+    const effectiveSaleScope = resolveEffectiveSaleScope(req.user, bodyScopeType, bodyScopeId);
+    const scopeType = effectiveSaleScope.scopeType;
+    const scopeId = effectiveSaleScope.scopeId;
 
     // Debug: Log the received payment method
 
@@ -97,14 +149,44 @@ const createSale = async (req, res, next) => {
       enrichedItems.push(enrichedItem);
     }
 
-    // Use provided totals or calculate them from items
-    let finalSubtotal = parseFloat(subtotal) || 0;
-    let finalTax = parseFloat(tax) || 0;
-    let finalDiscount = parseFloat(discount) || 0;
-    let finalTotal = parseFloat(total) || 0;
-    
-    // IMPORTANT: Store the bill amount (items total) separately from the net total (which includes credit)
-    const billAmount = finalSubtotal + finalTax - finalDiscount; // The actual bill amount
+    const money = (value, fallback = NaN) => {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : fallback;
+    };
+
+    // Recalculate line values on the server. Client totals are display hints only.
+    const calculatedSubtotal = enrichedItems.reduce((sum, item) => {
+      return sum + (money(item.unitPrice, 0) * money(item.quantity, 0));
+    }, 0);
+    const calculatedLineDiscount = enrichedItems.reduce((sum, item) => {
+      return sum + Math.max(0, money(item.discount, 0));
+    }, 0);
+    const taxRate = await resolveSalesTaxRate(scopeType, scopeId);
+    const calculatedTax = Math.round(
+      Math.max(0, calculatedSubtotal - calculatedLineDiscount) * (taxRate / 100) * 100
+    ) / 100;
+    const finalTax = money(tax, 0);
+    const finalDiscount = money(discount, 0);
+    const requestedSubtotal = money(subtotal, calculatedSubtotal);
+    const requestedTotal = money(total, NaN);
+
+    if (
+      finalTax < 0 ||
+      finalDiscount < 0 ||
+      !Number.isFinite(requestedSubtotal) ||
+      Math.abs(finalTax - calculatedTax) > 0.01
+    ) {
+      return res.status(400).json({ success: false, message: 'Invalid sale totals' });
+    }
+    if (Math.abs(requestedSubtotal - calculatedSubtotal) > 0.01) {
+      return res.status(400).json({ success: false, message: 'Subtotal does not match sale items' });
+    }
+
+    // The sale discount is separate from line discounts stored on sale_items.
+    // Apply each exactly once when calculating the amount owed.
+    const billAmount = calculatedSubtotal + finalTax - calculatedLineDiscount - finalDiscount;
+    let finalSubtotal = calculatedSubtotal;
+    let finalTotal = Number.isFinite(requestedTotal) ? requestedTotal : billAmount;
 
     // Always validate stock for every inventory item regardless of whether totals were provided.
     for (const item of enrichedItems) {
@@ -121,46 +203,32 @@ const createSale = async (req, res, next) => {
       }
     }
 
-    // If totals are not provided, calculate them from enriched items
-    if (subtotal === undefined || subtotal === null || subtotal === '' || tax === undefined || tax === null || tax === '' || total === undefined || total === null || total === '') {
-      let calculatedSubtotal = 0;
-      let calculatedDiscount = 0;
-
-      for (const item of enrichedItems) {
-        const itemTotal = (item.unitPrice * item.quantity) - (item.discount || 0);
-        calculatedSubtotal += itemTotal;
-        calculatedDiscount += item.discount || 0;
-      }
-
-      // No tax applied server-side — POS sends pre-calculated tax; 0 avoids hardcoded 10% mismatch.
-      const calculatedTax = parseFloat(tax) || 0;
-      const calculatedTotal = calculatedSubtotal + calculatedTax - calculatedDiscount;
-
-      finalSubtotal = calculatedSubtotal;
-      finalTax = calculatedTax;
-      finalDiscount = calculatedDiscount;
-      finalTotal = calculatedTotal;
-    }
-
     // Generate invoice number using branch/warehouse code
+    // H4: do NOT fall back to a random INV-* number — that masks generation
+    // failures and breaks the sequence. Retry once, then surface the error.
     let invoiceNo;
     try {
-      // Convert scopeId to number for InvoiceNumberService if it's a string
       const numericScopeId = typeof scopeId === 'string' ? parseInt(scopeId) : scopeId;
-      
+
       // Debug: Check if branch exists and has code
       if (scopeType === 'BRANCH') {
         const [branches] = await pool.execute('SELECT id, name, code FROM branches WHERE id = ?', [numericScopeId]);
         if (branches.length === 0) {
           throw new Error(`Branch not found with ID: ${numericScopeId}`);
         }
-        const branch = branches[0];
       }
-      
+
       invoiceNo = await InvoiceNumberService.generateInvoiceNumber(scopeType, numericScopeId);
     } catch (invoiceError) {
-      // Fallback to old method if new method fails
-      invoiceNo = `INV-${Date.now()}-${Math.random().toString(36).substr(2, 5).toUpperCase()}`;
+      try {
+        const numericScopeId = typeof scopeId === 'string' ? parseInt(scopeId) : scopeId;
+        invoiceNo = await InvoiceNumberService.generateInvoiceNumber(scopeType, numericScopeId);
+      } catch (retryError) {
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to generate invoice number. Please retry.',
+        });
+      }
     }
 
     // Extract customer name and phone from customerInfo
@@ -199,6 +267,10 @@ const createSale = async (req, res, next) => {
     //   1) validate payment+credit against totalWithOutstanding
     //   2) apply cash to outstanding first (settleAmount = min(outstanding, cash))
     //   3) remaining cash/credit apply to this invoice (must equal billAmount for GL)
+    //
+    // SECURITY/ORDERING: ALL validation that can return 400 runs BEFORE any
+    // settlement is committed, so a rejected request can never orphan a
+    // committed settlement row on the customer's AR ledger.
     const outstandingPortion = Math.max(0, parseFloat((finalTotal - billAmount).toFixed(2)));
     let settlementCreated = false;
     let settlementAmount = 0;
@@ -272,14 +344,173 @@ const createSale = async (req, res, next) => {
       settleAmount = Math.min(settleAmount, Math.max(0, combinedPaymentAmount));
     }
 
+    // A settlement can only run when customer data is present; use this flag
+    // consistently so the pre-settlement projection matches reality.
+    const willSettle =
+      settleAmount > 0.01 &&
+      customerName &&
+      customerPhone &&
+      String(customerPhone).trim().length > 0;
+
+    // Compute the final invoice split EXACTLY as it will be after settlement
+    // (settlementAmount equals settleAmount when the settlement runs), so every
+    // 400-capable check below runs BEFORE a settlement tx is committed.
+    const computeFinalAmounts = (settlementRan, appliedSettlementAmount) => {
+      let pay;
+      let credit;
+      if (isFullyCredit || isBalancePayment) {
+        pay = 0;
+        credit = billAmount;
+      } else if (settlementRan) {
+        pay = Math.max(0, parseFloat((combinedPaymentAmount - appliedSettlementAmount).toFixed(2)));
+        credit = parseFloat((billAmount - pay).toFixed(2));
+      } else if (outstandingPortion > 0.01) {
+        // Outstanding was included in POS total but no cash applied to it (e.g. pay 0)
+        pay = Math.max(0, combinedPaymentAmount);
+        credit = parseFloat((billAmount - pay).toFixed(2));
+      } else {
+        // No outstanding: use combined amounts as-is (already validated against bill)
+        pay = combinedPaymentAmount;
+        credit = combinedCreditAmount;
+      }
+      return {
+        finalPaymentAmount: parseFloat((pay ?? 0).toFixed(2)),
+        finalCreditAmount: parseFloat((credit ?? 0).toFixed(2)),
+      };
+    };
+
+    const projected = computeFinalAmounts(willSettle, settleAmount);
+    let finalPaymentAmount = projected.finalPaymentAmount;
+    let finalCreditAmount = projected.finalCreditAmount;
+
+    // GL assertPaymentSplit requires payment + credit === billAmount
+    const amountToCover = billAmount;
+    const invoiceCoverage = parseFloat((finalPaymentAmount + finalCreditAmount).toFixed(2));
+    if (Math.abs(invoiceCoverage - amountToCover) > 0.01) {
+      return res.status(400).json({
+        success: false,
+        message: `Payment amount (${finalPaymentAmount}) and credit amount (${finalCreditAmount}) must equal invoice total (${amountToCover}). Difference: ${Math.abs(invoiceCoverage - amountToCover)}`
+      });
+    }
+
+    // Validate payment amounts (allow negative for overpayments creating advance credit)
+    // Only block invalid scenarios: paymentAmount is negative but total is positive
+    if (finalPaymentAmount < 0 && finalTotal > 0) {
+        return res.status(400).json({
+            success: false,
+            message: 'Payment amount cannot be negative when total is positive'
+        });
+    }
+
+    // Payment status from allocated invoice amounts (warehouse-parity; ignore stale POS status)
+    let finalPaymentStatus;
+    if (isBalancePayment) {
+      finalPaymentStatus = 'COMPLETED';
+    } else if (isFullyCredit || normalizedPaymentMethod === 'FULLY_CREDIT') {
+      finalPaymentStatus = 'PENDING';
+    } else if (finalCreditAmount > 0) {
+      finalPaymentStatus = 'PENDING';
+    } else if (finalCreditAmount < 0) {
+      finalPaymentStatus = 'COMPLETED';
+    } else {
+      finalPaymentStatus = paymentStatus || 'COMPLETED';
+    }
+
+    // Determine credit status
+    // Credit status should be 'PENDING' if credit exists (positive or negative)
+    const finalCreditStatus = creditStatus || ((finalCreditAmount > 0 || finalCreditAmount < 0) ? 'PENDING' : 'NONE');
+
+    // Validate partial payment logic
+    if (finalPaymentStatus === 'PARTIAL' && finalCreditAmount <= 0) {
+        return res.status(400).json({
+            success: false,
+            message: 'Partial payment requires a credit amount greater than 0'
+        });
+    }
+
+    // A BALANCE_PAYMENT is a cashless invoice covered from the customer's
+    // pre-funded credit balance: COMPLETED + credit_amount > 0 is the intended
+    // shape, so it is exempt from this guard.
+    if (finalPaymentStatus === 'COMPLETED' && finalCreditAmount > 0 && !isBalancePayment) {
+        return res.status(400).json({
+            success: false,
+            message: 'Completed payment cannot have a credit amount'
+        });
+    }
+
+    // Early, pre-settlement required-field checks (previously ran AFTER the
+    // settlement commit, which could leave an orphan settlement on a 400).
+    if (!req.user.id) {
+        return res.status(400).json({
+            success: false,
+            message: 'User ID is required'
+        });
+    }
+
+    if (!scopeType) {
+        return res.status(400).json({
+            success: false,
+            message: 'Scope type is required'
+        });
+    }
+
+    if (!scopeName) {
+        return res.status(400).json({
+            success: false,
+            message: 'Scope ID/Name is required'
+        });
+    }
+
+    if (!normalizedPaymentMethod) {
+        return res.status(400).json({
+            success: false,
+            message: 'Payment method is required'
+        });
+    }
+
+    // Final validation - ensure no null SKUs (runs BEFORE settlement commit)
+    for (const item of enrichedItems) {
+        if (!item.sku) {
+            return res.status(400).json({
+                success: false,
+                message: `SKU is required for item ${item.inventoryItemId}`,
+                item: item
+            });
+        }
+    }
+
+    // Claim the idempotency key BEFORE the first write (settlement / sale).
+    // Every preceding 400 path runs before the claim, so a rejected request
+    // never leaves an in-flight marker behind. A concurrent duplicate submit
+    // with the same key blocks here with 409 instead of double-writing.
+    if (idempotencyKey) {
+      try {
+        const claim = await claimIdempotencyKey(idempotencyKey);
+        if (claim.status === 'replay') {
+          res.set('X-Idempotent-Replay', 'true');
+          return res.status(200).json(claim.body);
+        }
+        if (claim.status === 'in_progress') {
+          return res.status(409).json({
+            success: false,
+            message: 'A request with this Idempotency-Key is already in progress'
+          });
+        }
+        if (claim.status === 'claimed') {
+          idempotencyClaimed = true;
+        }
+      } catch (idemErr) {
+        // Storage unavailable: proceed (memory guard in the top-level replay
+        // check still protects single-instance double submits).
+      }
+    }
+
+    // ---- Settlement (only now do we touch the AR ledger) ----
     let settlementRan = false;
     let balanceForSaleOld = null;
 
     if (
-      settleAmount > 0.01 &&
-      customerName &&
-      customerPhone &&
-      String(customerPhone).trim().length > 0
+      willSettle
     ) {
       const settlementConn = await pool.getConnection();
       try {
@@ -320,34 +551,14 @@ const createSale = async (req, res, next) => {
       } finally {
         settlementConn.release();
       }
+
+      // Use the ACTUAL settlement amount for the invoice split (defensive:
+      // should equal the projection above).
+      const actual = computeFinalAmounts(true, settlementAmount);
+      finalPaymentAmount = actual.finalPaymentAmount;
+      finalCreditAmount = actual.finalCreditAmount;
+      finalPaymentStatus = finalCreditAmount > 0 ? finalPaymentStatus : 'COMPLETED';
     }
-
-    // Invoice split for GL (Sale.create total = billAmount)
-    // Mirror WarehouseSale: after settlement, paymentForSale = cash - settle; credit = bill - paymentForSale
-    let finalPaymentAmount;
-    let finalCreditAmount;
-
-    if (isFullyCredit) {
-      finalPaymentAmount = 0;
-      finalCreditAmount = billAmount;
-    } else if (isBalancePayment) {
-      finalPaymentAmount = 0;
-      finalCreditAmount = billAmount;
-    } else if (settlementRan) {
-      finalPaymentAmount = Math.max(0, parseFloat((combinedPaymentAmount - settlementAmount).toFixed(2)));
-      finalCreditAmount = parseFloat((billAmount - finalPaymentAmount).toFixed(2));
-    } else if (outstandingPortion > 0.01) {
-      // Outstanding was included in POS total but no cash applied to it (e.g. pay 0)
-      finalPaymentAmount = Math.max(0, combinedPaymentAmount);
-      finalCreditAmount = parseFloat((billAmount - finalPaymentAmount).toFixed(2));
-    } else {
-      // No outstanding: use combined amounts as-is (already validated against bill)
-      finalPaymentAmount = combinedPaymentAmount;
-      finalCreditAmount = combinedCreditAmount;
-    }
-
-    finalPaymentAmount = parseFloat((finalPaymentAmount ?? 0).toFixed(2));
-    finalCreditAmount = parseFloat((finalCreditAmount ?? 0).toFixed(2));
 
     // Fresh ledger balance for this sale's old_balance (after optional settlement)
     const previousRunningBalance = (balanceForSaleOld !== null && Number.isFinite(balanceForSaleOld))
@@ -359,59 +570,6 @@ const createSale = async (req, res, next) => {
     const creditUsedFromPreviousBalance = 0;
     const runningBalance = oldBalance + billAmount - finalPaymentAmount;
 
-    // GL assertPaymentSplit requires payment + credit === billAmount
-    const amountToCover = billAmount;
-    const invoiceCoverage = parseFloat((finalPaymentAmount + finalCreditAmount).toFixed(2));
-    if (Math.abs(invoiceCoverage - amountToCover) > 0.01) {
-      return res.status(400).json({
-        success: false,
-        message: `Payment amount (${finalPaymentAmount}) and credit amount (${finalCreditAmount}) must equal invoice total (${amountToCover}). Difference: ${Math.abs(invoiceCoverage - amountToCover)}`
-      });
-    }
-
-    // Payment status from allocated invoice amounts (warehouse-parity; ignore stale POS status)
-    let finalPaymentStatus;
-    if (isBalancePayment) {
-      finalPaymentStatus = 'COMPLETED';
-    } else if (isFullyCredit || normalizedPaymentMethod === 'FULLY_CREDIT') {
-      finalPaymentStatus = 'PENDING';
-    } else if (finalCreditAmount > 0) {
-      finalPaymentStatus = 'PENDING';
-    } else if (finalCreditAmount < 0) {
-      finalPaymentStatus = 'COMPLETED';
-    } else {
-      finalPaymentStatus = paymentStatus || 'COMPLETED';
-    }
-
-    
-    // Determine credit status
-    // Credit status should be 'PENDING' if credit exists (positive or negative)
-    const finalCreditStatus = creditStatus || ((finalCreditAmount > 0 || finalCreditAmount < 0) ? 'PENDING' : 'NONE');
-    
-    // Validate payment amounts (allow negative for overpayments creating advance credit)
-    // Only block invalid scenarios: paymentAmount is negative but total is positive
-    if (finalPaymentAmount < 0 && finalTotal > 0) {
-        return res.status(400).json({
-            success: false,
-            message: 'Payment amount cannot be negative when total is positive'
-        });
-    }
-    
-    // Validate partial payment logic
-    if (finalPaymentStatus === 'PARTIAL' && finalCreditAmount <= 0) {
-        return res.status(400).json({
-            success: false,
-            message: 'Partial payment requires a credit amount greater than 0'
-        });
-    }
-    
-    if (finalPaymentStatus === 'COMPLETED' && finalCreditAmount > 0) {
-        return res.status(400).json({
-            success: false,
-            message: 'Completed payment cannot have a credit amount'
-        });
-    }
-    
     
     // Create customer record if customer name/phone is provided and doesn't exist
 let customerId = null;
@@ -540,6 +698,7 @@ let customerId = null;
                 ]);
 
                 customerId = customerResult.insertId;
+                autoCreatedCustomerId = customerId;
             } else {
                 // ── Reuse existing customer ──────────────────────────────────
                 customerId = existingCustomers[0].id;
@@ -611,47 +770,6 @@ let customerId = null;
         }))
     };
 
-    // Validate required fields before creating sale
-    if (!req.user.id) {
-        return res.status(400).json({
-            success: false,
-            message: 'User ID is required'
-        });
-    }
-
-    if (!scopeType) {
-        return res.status(400).json({
-            success: false,
-            message: 'Scope type is required'
-        });
-    }
-
-    if (!scopeName) {
-        return res.status(400).json({
-            success: false,
-            message: 'Scope ID/Name is required'
-        });
-    }
-
-    if (!normalizedPaymentMethod) {
-        return res.status(400).json({
-            success: false,
-            message: 'Payment method is required'
-        });
-    }
-
-    // Final validation - ensure no null SKUs
-    for (const item of saleData.items) {
-        if (!item.sku) {
-            return res.status(400).json({
-                success: false,
-                message: `SKU is required for item ${item.inventoryItemId}`,
-                item: item
-            });
-        }
-    }
-
-    
     let sale;
     try {
         sale = await Sale.create(saleData);
@@ -673,6 +791,17 @@ let customerId = null;
             } finally {
               cleanConn.release();
             }
+          } catch (_) { /* best-effort */ }
+        }
+        // H3: if we auto-created the customer in this request and the sale
+        // failed, remove the orphan customer so repeat attempts don't accumulate
+        // duplicate customer rows.
+        if (autoCreatedCustomerId) {
+          try {
+            await pool.execute(
+              'DELETE FROM customers WHERE id = ? AND NOT EXISTS (SELECT 1 FROM sales WHERE customer_id = ?)',
+              [autoCreatedCustomerId, autoCreatedCustomerId]
+            );
           } catch (_) { /* best-effort */ }
         }
         throw saleError;
@@ -816,11 +945,14 @@ let customerId = null;
             invoice_no: sale.invoiceNo  // Add snake_case version for frontend compatibility
         }
     };
-    if (idempotencyKey) {
-      setIdempotentResponse(idempotencyKey, responseBody);
+    if (idempotencyKey && idempotencyClaimed) {
+      await completeIdempotencyKey(idempotencyKey, responseBody);
     }
     res.status(201).json(responseBody);
   } catch (error) {
+    if (idempotencyKey && typeof idempotencyClaimed !== 'undefined' && idempotencyClaimed) {
+      try { await failIdempotencyKey(idempotencyKey); } catch (_) { /* best-effort */ }
+    }
     const detail = error.sqlMessage || error.message || 'Unknown error';
     res.status(500).json({
         success: false,

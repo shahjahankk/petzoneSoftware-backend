@@ -40,7 +40,9 @@ class LedgerService {
         paymentMethod,
         customerInfo,
         userId,
-        items = []
+        items = [],
+        isSettlement = false,
+        isCreditRefund = false,
       } = saleData;
       
       this.assertPaymentSplit(totalAmount, paymentAmount, creditAmount);
@@ -66,46 +68,100 @@ class LedgerService {
        // Check if user exists, if not use NULL
        const [users] = await connection.execute('SELECT id FROM users WHERE id = ?', [userId]);
        const validUserId = users.length > 0 ? userId : null;
-       
-       // 1. DEBIT: Cash Account (for payment received)
-       if (paymentAmount > 0) {
+
+       // ── Settlement / credit-refund posting (NO revenue impact) ──────────
+       // An OUTSTANDING_SETTLEMENT is cash received against an existing
+       // receivable:  DEBIT Cash / CREDIT Accounts Receivable.
+       // A CREDIT_REFUND_SETTLEMENT pays back a customer credit:
+       //  DEBIT Accounts Receivable / CREDIT Cash.
+       if (isSettlement) {
+         if (isCreditRefund) {
+           // Paying cash out to the customer's existing credit balance.
+           await this.createLedgerEntry(connection, {
+             accountId: accountsReceivableAccount.id,
+             type: 'DEBIT',
+             amount: totalAmount,
+             description: `Settlement ${invoiceNo} - Credit refund to ${customerInfo?.name || 'Customer'}`,
+             reference: 'SALE',
+             referenceId: saleId,
+             date: transactionDate,
+             createdBy: validUserId,
+           });
+           await this.createLedgerEntry(connection, {
+             accountId: cashAccount.id,
+             type: 'CREDIT',
+             amount: totalAmount,
+             description: `Settlement ${invoiceNo} - Credit refund to ${customerInfo?.name || 'Customer'}`,
+             reference: 'SALE',
+             referenceId: saleId,
+             date: transactionDate,
+             createdBy: validUserId,
+           });
+         } else {
+           // Cash received to reduce an existing outstanding balance.
+           const settledAmt = Math.max(parseFloat(paymentAmount) || 0, parseFloat(totalAmount) || 0);
+           await this.createLedgerEntry(connection, {
+             accountId: cashAccount.id,
+             type: 'DEBIT',
+             amount: settledAmt,
+             description: `Settlement ${invoiceNo} - Outstanding collected from ${customerInfo?.name || 'Customer'}`,
+             reference: 'SALE',
+             referenceId: saleId,
+             date: transactionDate,
+             createdBy: validUserId,
+           });
+           await this.createLedgerEntry(connection, {
+             accountId: accountsReceivableAccount.id,
+             type: 'CREDIT',
+             amount: settledAmt,
+             description: `Settlement ${invoiceNo} - Reduce Accounts Receivable for ${customerInfo?.name || 'Customer'}`,
+             reference: 'SALE',
+             referenceId: saleId,
+             date: transactionDate,
+             createdBy: validUserId,
+           });
+         }
+       } else {
+         // 1. DEBIT: Cash Account (for payment received)
+         if (paymentAmount > 0) {
+           await this.createLedgerEntry(connection, {
+             accountId: cashAccount.id,
+             type: 'DEBIT',
+             amount: paymentAmount,
+             description: `Sale ${invoiceNo} - Cash Payment`,
+             reference: 'SALE',
+             referenceId: saleId,
+             date: transactionDate,
+             createdBy: validUserId
+           });
+         }
+         
+         // 2. DEBIT: Accounts Receivable (for credit amount)
+         if (creditAmount > 0) {
+           await this.createLedgerEntry(connection, {
+             accountId: accountsReceivableAccount.id,
+             type: 'DEBIT',
+             amount: creditAmount,
+             description: `Sale ${invoiceNo} - Credit to ${customerInfo?.name || 'Customer'}`,
+             reference: 'SALE',
+             referenceId: saleId,
+             date: transactionDate,
+             createdBy: validUserId
+           });
+         }
+         
+         // 3. CREDIT: Sales Revenue Account
          await this.createLedgerEntry(connection, {
-           accountId: cashAccount.id,
-           type: 'DEBIT',
-           amount: paymentAmount,
-           description: `Sale ${invoiceNo} - Cash Payment`,
+           accountId: salesRevenueAccount.id,
+           type: 'CREDIT',
+           amount: totalAmount,
+           description: `Sale ${invoiceNo} - Revenue`,
            reference: 'SALE',
            referenceId: saleId,
            date: transactionDate,
            createdBy: validUserId
          });
        }
-       
-       // 2. DEBIT: Accounts Receivable (for credit amount)
-       if (creditAmount > 0) {
-         await this.createLedgerEntry(connection, {
-           accountId: accountsReceivableAccount.id,
-           type: 'DEBIT',
-           amount: creditAmount,
-           description: `Sale ${invoiceNo} - Credit to ${customerInfo?.name || 'Customer'}`,
-           reference: 'SALE',
-           referenceId: saleId,
-           date: transactionDate,
-           createdBy: validUserId
-         });
-       }
-       
-       // 3. CREDIT: Sales Revenue Account
-       await this.createLedgerEntry(connection, {
-         accountId: salesRevenueAccount.id,
-         type: 'CREDIT',
-         amount: totalAmount,
-         description: `Sale ${invoiceNo} - Revenue`,
-         reference: 'SALE',
-         referenceId: saleId,
-         date: transactionDate,
-         createdBy: validUserId
-       });
        
        // 4. DEBIT: Cost of Goods Sold (if items have cost data)
        if (totalCost > 0) {
@@ -137,14 +193,28 @@ class LedgerService {
 
       return {
         success: true,
-        message: 'Sale transaction recorded in ledger',
-        entries: [
-          { account: 'Cash Account', type: 'DEBIT', amount: paymentAmount },
-          { account: 'Accounts Receivable', type: 'DEBIT', amount: creditAmount },
-          { account: 'Sales Revenue', type: 'CREDIT', amount: totalAmount },
-          { account: 'Cost of Goods Sold', type: 'DEBIT', amount: totalCost },
-          { account: 'Inventory', type: 'CREDIT', amount: totalCost }
-        ]
+        message: isSettlement
+          ? (isCreditRefund
+              ? 'Credit refund settlement recorded in ledger'
+              : 'Outstanding settlement recorded in ledger')
+          : 'Sale transaction recorded in ledger',
+        entries: isSettlement
+          ? (isCreditRefund
+              ? [
+                  { account: 'Accounts Receivable', type: 'DEBIT', amount: totalAmount },
+                  { account: 'Cash Account', type: 'CREDIT', amount: totalAmount },
+                ]
+              : [
+                  { account: 'Cash Account', type: 'DEBIT', amount: Math.max(parseFloat(paymentAmount) || 0, parseFloat(totalAmount) || 0) },
+                  { account: 'Accounts Receivable', type: 'CREDIT', amount: Math.max(parseFloat(paymentAmount) || 0, parseFloat(totalAmount) || 0) },
+                ])
+          : [
+              { account: 'Cash Account', type: 'DEBIT', amount: paymentAmount },
+              { account: 'Accounts Receivable', type: 'DEBIT', amount: creditAmount },
+              { account: 'Sales Revenue', type: 'CREDIT', amount: totalAmount },
+              { account: 'Cost of Goods Sold', type: 'DEBIT', amount: totalCost },
+              { account: 'Inventory', type: 'CREDIT', amount: totalCost }
+            ]
       };
       
     } catch (error) {

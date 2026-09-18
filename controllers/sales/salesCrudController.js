@@ -648,12 +648,13 @@ const updateSale = async (req, res, next) => {
           
           const [insRow] = await connection.execute(`
             INSERT INTO sale_items (
-              sale_id, inventory_item_id, sku, name, quantity, 
+              sale_id, inventory_item_id, clinic_service_id, sku, name, quantity, 
               unit_price, discount, discount_type, total, original_price, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
           `, [
             id,
             item.inventoryItemId || item.inventory_item_id,
+            item.clinicServiceId || item.clinic_service_id || null,
             item.sku,
             item.name || item.itemName,
             itemQuantity,
@@ -792,7 +793,7 @@ const updateSale = async (req, res, next) => {
       const oldBalance = ledgerMigrationDone
         ? (Number.isFinite(openingOldForLedger) ? openingOldForLedger : 0)
         : (parseFloat(sale.old_balance) || 0);
-      const runningBalance = oldBalance + finalCreditAmount - finalPaymentAmount;
+      const runningBalance = oldBalance + finalTotal - finalPaymentAmount;
 
       // 4. Determine payment status
       let finalPaymentStatus = paymentStatus;
@@ -1132,6 +1133,24 @@ const deleteSale = async (req, res, next) => {
     const { removeSaleFromLedgers } = require('../../services/saleLedgerSyncService');
     if (saleRow) {
       await removeSaleFromLedgers(connection, parseInt(id, 10), saleRow);
+
+      // H9: keep the cached customers.current_balance consistent with the
+      // immutable ledger now that this sale's entries are gone.
+      try {
+        const balAfterDelete = await CustomerLedgerEntries.getCustomerBalance(connection, {
+          scopeType: saleRow.scope_type,
+          scopeId: saleRow.scope_id,
+          retailerId: saleRow.retailer_id,
+          customerName: saleRow.customer_name,
+          customerPhone: saleRow.customer_phone,
+        });
+        if (saleRow.customer_id) {
+          await connection.execute(
+            'UPDATE customers SET current_balance = ?, updated_at = NOW() WHERE id = ?',
+            [balAfterDelete, saleRow.customer_id]
+          );
+        }
+      } catch (_) { /* non-fatal: ledger remains the source of truth */ }
     }
     
     for (const row of saleItemRows) {

@@ -81,7 +81,7 @@ const createSalesReturn = async (req, res, next) => {
     let totalRefund;
     let itemsForProcessing;
     try {
-      const validated = await validateAndNormalizeReturnItems(saleId, items, originalSaleItems);
+      const validated = await validateAndNormalizeReturnItems(saleId, items, originalSaleItems, originalSale);
       totalRefund = validated.totalRefund;
       itemsForProcessing = validated.normalizedItems;
     } catch (validationErr) {
@@ -336,6 +336,17 @@ const createSalesReturn = async (req, res, next) => {
     try {
       await connection.beginTransaction();
       const migrationDone = await isLedgerMigrationComplete(connection);
+      await connection.execute('SELECT id FROM sales WHERE id = ? FOR UPDATE', [saleId]);
+      const lockedValidation = await validateAndNormalizeReturnItems(
+        saleId,
+        items,
+        originalSaleItems,
+        originalSale,
+        connection
+      );
+      if (Math.abs(lockedValidation.totalRefund - totalRefund) > 0.01) {
+        throw new Error('Return amount changed while validating the original sale; please retry');
+      }
 
       salesReturn = await SalesReturn.create(returnData, connection);
 

@@ -35,23 +35,61 @@ class SalesReturn {
         processedBy
       } = returnData;
 
-      // Generate return number
-      const [last] = await useConnection.execute(
-        'SELECT return_no FROM sales_returns ORDER BY id DESC LIMIT 1'
-      );
-      const nextNum = last.length > 0 
-        ? (parseInt(last[0].return_no.replace('RET-', '')) || 0) + 1 
-        : 1;
-      const returnNo = `RET-${nextNum.toString().padStart(10, '0')}`;
+      // Serialize concurrent returns for the same original sale: the FOR UPDATE
+      // row lock is held for the rest of this transaction, so two simultaneous
+      // return requests cannot both validate against the same stale quantities.
+      if (originalSaleId != null && originalSaleId !== '') {
+        await useConnection.execute('SELECT id FROM sales WHERE id = ? FOR UPDATE', [originalSaleId]);
+      }
+
+      
+      let lastReturnNo = null;
+      let returnNo = null;
+
+      const computeNextReturnNo = async () => {
+          const [last] = await useConnection.execute(
+            'SELECT return_no FROM sales_returns ORDER BY id DESC LIMIT 1'
+          );
+          const lastNo = lastReturnNo || last[0]?.return_no || null;
+          const nextNum = lastNo
+            ? (parseInt(lastNo.replace('RET-', '')) || 0) + 1
+            : 1;
+          returnNo = `RET-${nextNum.toString().padStart(10, '0')}`;
+        };
+
+      const insertWithReturnNo = async () => {
+        for (let attempt = 0; attempt < 5; attempt += 1) {
+          await computeNextReturnNo();
+          try {
+            const [insertRes] = await useConnection.execute(
+              `INSERT INTO sales_returns (
+                return_no, original_sale_id, user_id, reason, notes, 
+                total_refund, processed_by, status
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, 'COMPLETED')`,
+              [returnNo, originalSaleId, userId, reason, notes, totalRefund, processedBy]
+            );
+            return insertRes;
+          } catch (e) {
+            if (e && (e.code === 'ER_DUP_ENTRY' || e.errno === 1062)) {
+              lastReturnNo = returnNo;
+              continue;
+            }
+            throw e;
+          }
+        }
+        const fallbackNo = `RET-${Date.now()}${Math.floor(Math.random() * 1000)}`;
+        const [insertRes] = await useConnection.execute(
+          `INSERT INTO sales_returns (
+            return_no, original_sale_id, user_id, reason, notes, 
+            total_refund, processed_by, status
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, 'COMPLETED')`,
+          [fallbackNo, originalSaleId, userId, reason, notes, totalRefund, processedBy]
+        );
+        return insertRes;
+      };
 
       // Insert main return
-      const [result] = await useConnection.execute(
-        `INSERT INTO sales_returns (
-          return_no, original_sale_id, user_id, reason, notes, 
-          total_refund, processed_by, status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, 'COMPLETED')`,
-        [returnNo, originalSaleId, userId, reason, notes, totalRefund, processedBy]
-      );
+      const [result] = await insertWithReturnNo();
 
       const returnId = result.insertId;
 

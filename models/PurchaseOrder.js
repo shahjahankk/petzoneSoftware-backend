@@ -7,6 +7,31 @@ const { executeQuery, pool } = require('../config/database');
 // ─────────────────────────────────────────────────────────────────────────────
 
 let itemBarcodeColumnReady = false;
+let paymentColumnsReady = false;
+
+async function ensurePaymentColumns() {
+  if (paymentColumnsReady) return;
+  const columns = [
+    ['payment_method', "VARCHAR(40) NULL"],
+    ['paid_amount', 'DECIMAL(14,2) NOT NULL DEFAULT 0'],
+    ['payment_status', "VARCHAR(30) NOT NULL DEFAULT 'CREDIT'"]
+  ];
+  for (const [name, definition] of columns) {
+    try {
+      const rows = await executeQuery(
+        `SELECT COUNT(*) AS c FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'purchase_orders' AND COLUMN_NAME = ?`,
+        [name]
+      );
+      if (!Number(rows?.[0]?.c || 0)) {
+        await executeQuery(`ALTER TABLE purchase_orders ADD COLUMN ${name} ${definition}`);
+      }
+    } catch (err) {
+      if (err?.code !== 'ER_DUP_FIELDNAME') throw err;
+    }
+  }
+  paymentColumnsReady = true;
+}
 
 async function ensureItemBarcodeColumn() {
   if (itemBarcodeColumnReady) return;
@@ -34,6 +59,7 @@ async function ensureItemBarcodeColumn() {
 
 class PurchaseOrder {
   constructor(data) {
+    ensurePaymentColumns().catch(() => {});
     this.id              = data.id;
     this.orderNumber     = data.order_number;
     this.supplierId      = data.supplier_id;
@@ -44,6 +70,9 @@ class PurchaseOrder {
     this.actualDelivery  = data.actual_delivery;
     this.status          = data.status;
     this.totalAmount     = data.total_amount;
+    this.paymentMethod   = data.payment_method || 'CREDIT';
+    this.paidAmount      = Number(data.paid_amount || 0);
+    this.paymentStatus   = data.payment_status || (this.paidAmount >= Number(this.totalAmount || 0) ? 'PAID' : 'CREDIT');
     this.notes           = data.notes;
     this.createdBy       = data.created_by;
     this.createdAt       = data.created_at;
@@ -60,20 +89,23 @@ class PurchaseOrder {
   }
 
   static async create(orderData) {
+    await ensurePaymentColumns();
     const {
       orderNumber, supplierId, scopeType, scopeId, orderDate,
-      expectedDelivery, status, totalAmount, notes, createdBy
+      expectedDelivery, status, totalAmount, notes, createdBy,
+      paymentMethod, paidAmount, paymentStatus
     } = orderData;
 
     const result = await executeQuery(
       `INSERT INTO purchase_orders (
         order_number, supplier_id, scope_type, scope_id, order_date,
-        expected_delivery, status, total_amount, notes, created_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        expected_delivery, status, total_amount, payment_method, paid_amount, payment_status, notes, created_by
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         orderNumber, supplierId, scopeType, scopeId, orderDate,
         expectedDelivery || null, status || 'PENDING', totalAmount || 0.00,
-        notes || null, createdBy
+        paymentMethod || 'CREDIT', Number(paidAmount) || 0,
+        paymentStatus || 'CREDIT', notes || null, createdBy
       ]
     );
     return await PurchaseOrder.findById(result.insertId || result.lastID);
@@ -238,26 +270,29 @@ class PurchaseOrder {
   }
 
   async save() {
+    await ensurePaymentColumns();
     if (this.id) {
       await executeQuery(
         `UPDATE purchase_orders SET
            order_number = ?, supplier_id = ?, scope_type = ?, scope_id = ?,
            order_date = ?, expected_delivery = ?, actual_delivery = ?,
-           status = ?, total_amount = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
+           status = ?, total_amount = ?, payment_method = ?, paid_amount = ?, payment_status = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
          WHERE id = ?`,
         [this.orderNumber, this.supplierId, this.scopeType, this.scopeId,
          this.orderDate, this.expectedDelivery, this.actualDelivery,
-         this.status, this.totalAmount, this.notes, this.id]
+         this.status, this.totalAmount, this.paymentMethod, this.paidAmount, this.paymentStatus, this.notes, this.id]
       );
     } else {
       const result = await executeQuery(
         `INSERT INTO purchase_orders (
            order_number, supplier_id, scope_type, scope_id, order_date,
-           expected_delivery, actual_delivery, status, total_amount, notes, created_by
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           expected_delivery, actual_delivery, status, total_amount,
+           payment_method, paid_amount, payment_status, notes, created_by
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [this.orderNumber, this.supplierId, this.scopeType, this.scopeId,
          this.orderDate, this.expectedDelivery, this.actualDelivery,
-         this.status, this.totalAmount, this.notes, this.createdBy]
+         this.status, this.totalAmount, this.paymentMethod, this.paidAmount,
+         this.paymentStatus, this.notes, this.createdBy]
       );
       this.id = result.insertId || result.lastID;
     }

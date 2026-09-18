@@ -37,29 +37,43 @@ function matchOriginalSaleItem(requestItem, originalSaleItems) {
 }
 
 /**
- * Server-side return validation: qty caps vs prior returns, refund = qty × original unit price.
+ * Server-side return validation: qty caps vs prior returns and refund allocation
+ * from the original sale's discounted, tax-inclusive line values.
  */
-async function validateAndNormalizeReturnItems(saleId, requestItems, originalSaleItems) {
-  const [priorRows] = await pool.execute(
-    `SELECT sri.inventory_item_id, sri.item_name, SUM(sri.quantity) AS qty_returned
+async function validateAndNormalizeReturnItems(saleId, requestItems, originalSaleItems, originalSale = {}, connection = null) {
+  const executor = connection || pool
+  const [priorRows] = await executor.execute(
+    `SELECT sri.inventory_item_id, sri.item_name, sri.quantity
      FROM sales_return_items sri
      INNER JOIN sales_returns sr ON sr.id = sri.return_id
      WHERE sr.original_sale_id = ?
        AND sr.status NOT IN ('CANCELLED', 'REJECTED')
-     GROUP BY sri.inventory_item_id, sri.item_name`,
+     FOR UPDATE`,
     [saleId]
   );
 
   const returnedByInvId = new Map();
   const returnedByName = new Map();
   for (const row of priorRows) {
-    const qty = parseFloat(row.qty_returned) || 0;
+    const qty = parseFloat(row.quantity) || 0;
     if (row.inventory_item_id != null) {
-      returnedByInvId.set(row.inventory_item_id, qty);
+      returnedByInvId.set(row.inventory_item_id, (returnedByInvId.get(row.inventory_item_id) || 0) + qty);
     } else if (row.item_name) {
-      returnedByName.set(String(row.item_name).trim().toLowerCase(), qty);
+      const key = String(row.item_name).trim().toLowerCase();
+      returnedByName.set(key, (returnedByName.get(key) || 0) + qty);
     }
   }
+
+  const requestedByKey = new Map();
+  const saleTax = Number(originalSale.tax) || 0;
+  const saleDiscount = Number(originalSale.discount) || 0;
+  const saleLinesGross = originalSaleItems.reduce((sum, item) => {
+    return sum + (Number(item.unit_price) || 0) * (Number(item.quantity) || 0);
+  }, 0);
+  const saleLinesNet = originalSaleItems.reduce((sum, item) => {
+    const gross = (Number(item.unit_price) || 0) * (Number(item.quantity) || 0);
+    return sum + Math.max(0, gross - (Number(item.discount) || 0));
+  }, 0);
 
   let totalRefund = 0;
   const normalizedItems = [];
@@ -81,27 +95,35 @@ async function validateAndNormalizeReturnItems(saleId, requestItems, originalSal
     const origQty = parseFloat(originalSaleItem.quantity) || 0;
     const invId = originalSaleItem.inventory_item_id;
     const nameKey = normalizeKey(saleItemLabel(originalSaleItem));
+    const itemKey = invId != null ? `id:${invId}` : `name:${nameKey}`;
     const alreadyReturned = invId != null
       ? (returnedByInvId.get(invId) || 0)
       : (returnedByName.get(nameKey) || 0);
+    const requestedQty = requestedByKey.get(itemKey) || 0;
 
-    if (reqQty + alreadyReturned > origQty + 0.001) {
+    if (reqQty + requestedQty + alreadyReturned > origQty + 0.001) {
       throw new Error(
         `Cannot return ${reqQty} of "${saleItemLabel(originalSaleItem)}" — ` +
-          `sold ${origQty}, already returned ${alreadyReturned}`
+          `sold ${origQty}, already returned ${alreadyReturned + requestedQty}`
       );
     }
 
     const unitPrice = parseFloat(originalSaleItem.unit_price) || 0;
-    const lineRefund = Math.round(unitPrice * reqQty * 100) / 100;
-    const clientRefund = parseFloat(item.refundAmount);
-    if (Number.isFinite(clientRefund) && Math.abs(clientRefund - lineRefund) > MONEY_EPS) {
-      throw new Error(
-        `Refund for "${saleItemLabel(originalSaleItem)}" must be ${lineRefund} (${reqQty} × ${unitPrice}), not ${clientRefund}`
-      );
-    }
-
+    const lineGross = unitPrice * origQty;
+    const lineDiscount = Number(originalSaleItem.discount) || 0;
+    const lineNet = Math.max(0, lineGross - lineDiscount);
+    const returnedShare = origQty > 0 ? reqQty / origQty : 0;
+    const allocatedSaleDiscount = saleLinesGross > 0
+      ? saleDiscount * (lineGross / saleLinesGross) * returnedShare
+      : 0;
+    const allocatedTax = saleLinesNet > 0
+      ? saleTax * (lineNet / saleLinesNet) * returnedShare
+      : 0;
+    const lineRefund = Math.round(
+      Math.max(0, (lineNet * returnedShare) - allocatedSaleDiscount + allocatedTax) * 100
+    ) / 100;
     totalRefund += lineRefund;
+    requestedByKey.set(itemKey, requestedQty + reqQty);
     normalizedItems.push({
       ...item,
       quantity: reqQty,

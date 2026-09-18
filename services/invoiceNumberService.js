@@ -6,6 +6,49 @@ function escapeRegExp(str) {
 }
 
 class InvoiceNumberService {
+  /**
+   * H4: atomically allocate the next number for a sequence key.
+   * Uses the LAST_INSERT_ID(expr) trick so concurrent connections never receive
+   * the same value. Returns null if the invoice_sequences table has not been
+   * created yet so callers can fall back to the legacy MAX+1 behaviour.
+   */
+  static async allocateSequenceNumber(connection, scopeKey) {
+    try {
+      await connection.execute(
+        `INSERT INTO invoice_sequences (scope_key, last_number)
+         VALUES (?, LAST_INSERT_ID(1))
+         ON DUPLICATE KEY UPDATE last_number = LAST_INSERT_ID(last_number + 1)`,
+        [scopeKey]
+      );
+      const [rows] = await connection.execute('SELECT LAST_INSERT_ID() AS n');
+      const n = Number(rows[0]?.n);
+      return Number.isFinite(n) && n > 0 ? n : null;
+    } catch (error) {
+      if (error.code === 'ER_NO_SUCH_TABLE') return null;
+      throw error;
+    }
+  }
+
+  static async legacyNextNumber(connection, code, seriesTag) {
+    const pattern = seriesTag
+      ? `^${escapeRegExp(code)}-${escapeRegExp(seriesTag)}-[0-9]+$`
+      : `^${escapeRegExp(code)}-[0-9]+$`;
+    const [maxRows] = await connection.execute(
+      `SELECT invoice_no FROM sales WHERE invoice_no REGEXP ?
+       ORDER BY CAST(SUBSTRING_INDEX(invoice_no, '-', -1) AS UNSIGNED) DESC LIMIT 1`,
+      [pattern]
+    );
+    let nextNumber = 1;
+    if (maxRows.length > 0) {
+      const suffix = seriesTag
+        ? new RegExp(`^${escapeRegExp(code)}-${escapeRegExp(seriesTag)}-(\\d+)$`)
+        : new RegExp(`^${escapeRegExp(code)}-(\\d+)$`);
+      const match = maxRows[0].invoice_no.match(suffix);
+      if (match) nextNumber = parseInt(match[1], 10) + 1;
+    }
+    return nextNumber;
+  }
+
   static async resolveScopeCode(connection, scopeType, scopeId) {
     let code = '';
     let entityName = '';
@@ -49,25 +92,12 @@ class InvoiceNumberService {
     try {
       await connection.beginTransaction();
       const { code } = await this.resolveScopeCode(connection, scopeType, scopeId);
-      const seriesPattern = `^${escapeRegExp(code)}-${escapeRegExp(seriesTag)}-[0-9]+$`;
-      const [maxRows] = await connection.execute(
-        `SELECT invoice_no FROM sales WHERE invoice_no REGEXP ?
-         ORDER BY CAST(SUBSTRING_INDEX(invoice_no, '-', -1) AS UNSIGNED) DESC LIMIT 1`,
-        [seriesPattern]
-      );
-      let nextNumber = 1;
-      if (maxRows.length > 0) {
-        const match = maxRows[0].invoice_no.match(
-          new RegExp(`^${escapeRegExp(code)}-${escapeRegExp(seriesTag)}-(\\d+)$`)
-        );
-        if (match) nextNumber = parseInt(match[1], 10) + 1;
+      const scopeKey = `${code}-${seriesTag}`;
+      let nextNumber = await this.allocateSequenceNumber(connection, scopeKey);
+      if (nextNumber === null) {
+        nextNumber = await this.legacyNextNumber(connection, code, seriesTag);
       }
-      let invoiceNumber = `${code}-${seriesTag}-${nextNumber.toString().padStart(6, '0')}`;
-      const [existingRows] = await connection.execute('SELECT id FROM sales WHERE invoice_no = ?', [invoiceNumber]);
-      if (existingRows.length > 0) {
-        nextNumber += 1;
-        invoiceNumber = `${code}-${seriesTag}-${nextNumber.toString().padStart(6, '0')}`;
-      }
+      const invoiceNumber = `${code}-${seriesTag}-${nextNumber.toString().padStart(6, '0')}`;
       await connection.commit();
       return invoiceNumber;
     } catch (error) {
@@ -152,39 +182,24 @@ class InvoiceNumberService {
       
       // Flat sales only: {CODE}-{000001}. Exclude settlement/bilty rows (e.g. HYDWH-STL-000001),
       // which sort above HYDWH-000241 as strings and break ^CODE-(\\d+)$.
-      const flatPattern = `^${escapeRegExp(code)}-[0-9]+$`;
-      const [maxRows] = await connection.execute(
-        `SELECT invoice_no FROM sales WHERE invoice_no REGEXP ?
-         ORDER BY CAST(SUBSTRING_INDEX(invoice_no, '-', -1) AS UNSIGNED) DESC LIMIT 1`,
-        [flatPattern]
-      );
-
-      let nextNumber = 1;
-      if (maxRows.length > 0) {
-        const lastInvoice = maxRows[0].invoice_no;
-        const match = lastInvoice.match(new RegExp(`^${escapeRegExp(code)}-(\\d+)$`));
-        if (match) {
-          nextNumber = parseInt(match[1], 10) + 1;
+      // H4: use the atomic per-code counter so concurrent requests cannot collide.
+      let nextNumber = await this.allocateSequenceNumber(connection, code);
+      if (nextNumber === null) {
+        nextNumber = await this.legacyNextNumber(connection, code, null);
+        // Legacy safety: skip numbers already taken.
+        let candidate = `${code}-${nextNumber.toString().padStart(6, '0')}`;
+        while (true) {
+          const [existingRows] = await connection.execute(
+            'SELECT id FROM sales WHERE invoice_no = ? LIMIT 1',
+            [candidate]
+          );
+          if (existingRows.length === 0) break;
+          nextNumber += 1;
+          candidate = `${code}-${nextNumber.toString().padStart(6, '0')}`;
         }
       }
-      
+
       const invoiceNumber = `${code}-${nextNumber.toString().padStart(6, '0')}`;
-      
-      // Verify the invoice number doesn't already exist (extra safety check)
-      const [existingRows] = await connection.execute(
-        'SELECT id FROM sales WHERE invoice_no = ?',
-        [invoiceNumber]
-      );
-      
-      if (existingRows.length > 0) {
-        // If it exists, increment and try again
-        nextNumber++;
-        const invoiceNumber2 = `${code}-${nextNumber.toString().padStart(6, '0')}`;
-        
-        await connection.commit();
-        return invoiceNumber2;
-      }
-      
       await connection.commit();
       return invoiceNumber;
       
@@ -249,32 +264,15 @@ class InvoiceNumberService {
       
       // Get the next invoice number for this warehouse-salesperson combination
       const prefix = `${warehouseCode}-${salespersonCode}`;
-      const [countRows] = await connection.execute(
-        'SELECT COUNT(*) as count FROM sales WHERE invoice_no LIKE ?',
-        [`${prefix}-%`]
-      );
-      
-      const nextNumber = (countRows[0].count || 0) + 1;
-      const invoiceNumber = `${prefix}-${nextNumber.toString().padStart(6, '0')}`;
-      
-      // Verify the invoice number doesn't already exist
-      const [existingRows] = await connection.execute(
-        'SELECT id FROM sales WHERE invoice_no = ?',
-        [invoiceNumber]
-      );
-      
-      if (existingRows.length > 0) {
-        // If it exists, try the next number
-        const [countRows2] = await connection.execute(
+      let nextNumber = await this.allocateSequenceNumber(connection, prefix);
+      if (nextNumber === null) {
+        const [rows] = await connection.execute(
           'SELECT COUNT(*) as count FROM sales WHERE invoice_no LIKE ?',
           [`${prefix}-%`]
         );
-        const nextNumber2 = countRows2[0].count + 1;
-        const invoiceNumber2 = `${prefix}-${nextNumber2.toString().padStart(6, '0')}`;
-        
-        await connection.commit();
-        return invoiceNumber2;
+        nextNumber = (rows[0].count || 0) + 1;
       }
+      const invoiceNumber = `${prefix}-${nextNumber.toString().padStart(6, '0')}`;
       
       await connection.commit();
       return invoiceNumber;
@@ -298,32 +296,15 @@ class InvoiceNumberService {
       await connection.beginTransaction();
       
       // Get the next invoice number for this prefix
-      const [countRows] = await connection.execute(
-        'SELECT COUNT(*) as count FROM sales WHERE invoice_no LIKE ?',
-        [`${prefix}-%`]
-      );
-      
-      const nextNumber = (countRows[0].count || 0) + 1;
-      const invoiceNumber = `${prefix}-${nextNumber.toString().padStart(6, '0')}`;
-      
-      // Verify the invoice number doesn't already exist
-      const [existingRows] = await connection.execute(
-        'SELECT id FROM sales WHERE invoice_no = ?',
-        [invoiceNumber]
-      );
-      
-      if (existingRows.length > 0) {
-        // If it exists, try the next number
-        const [countRows2] = await connection.execute(
+      let nextNumber = await this.allocateSequenceNumber(connection, prefix);
+      if (nextNumber === null) {
+        const [countRows] = await connection.execute(
           'SELECT COUNT(*) as count FROM sales WHERE invoice_no LIKE ?',
           [`${prefix}-%`]
         );
-        const nextNumber2 = countRows2[0].count + 1;
-        const invoiceNumber2 = `${prefix}-${nextNumber2.toString().padStart(6, '0')}`;
-        
-        await connection.commit();
-        return invoiceNumber2;
+        nextNumber = (countRows[0].count || 0) + 1;
       }
+      const invoiceNumber = `${prefix}-${nextNumber.toString().padStart(6, '0')}`;
       
       await connection.commit();
       return invoiceNumber;

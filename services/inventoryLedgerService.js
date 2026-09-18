@@ -96,7 +96,20 @@ async function appendEntry(connectionOrPool, params) {
     );
   }
 
-  const eid = event_id || crypto.randomUUID().replace(/-/g, '').slice(0, 32);
+  // Deterministic event_id when a business reference is attached
+  // (e.g. a sales-return id). Re-submitted RESTOCK/ADJUSTMENT events then
+  // collide on the unique event_id index and are deduped via ER_DUP_ENTRY
+  // instead of double-moving stock. Falls back to a random UUID for events
+  // with no reference (OPENING, transfers, ...).
+  const eid =
+    event_id ||
+    (reference_id != null && reference_id !== ''
+      ? crypto
+          .createHash('sha1')
+          .update(`${String(reference_type)}:${String(reference_id)}`)
+          .digest('hex')
+          .slice(0, 32)
+      : crypto.randomUUID().replace(/-/g, '').slice(0, 32));
   const refT = String(reference_type);
   const refI =
     reference_id != null && reference_id !== ''

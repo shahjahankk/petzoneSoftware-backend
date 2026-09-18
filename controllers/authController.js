@@ -71,9 +71,12 @@ const login = async (req, res, next) => {
         }
       });
     } catch (error) {
+      // Surface the real cause in server logs — this block also catches JWT
+      // configuration errors, not just DB failures.
+      console.error('[login] failed:', error && error.code ? `${error.code}: ` : '', error && error.message);
       res.status(500).json({
         success: false,
-        message: 'Database connection error. Please try again.'
+        message: 'Login failed. Please try again or contact support.'
       });
     }
   } catch (error) {

@@ -234,8 +234,16 @@ const searchSales = async (req, res, next) => {
         ORDER BY si.id
       `, [sale.id]);
 
-      // Parse customer_info and enrich with salesperson name if missing
-      let customerInfo = sale.customer_info ? JSON.parse(sale.customer_info) : null;
+      // Parse customer_info and enrich with salesperson name if missing.
+      // Malformed JSON in a single row must not 500 the whole search.
+      let customerInfo = null;
+      if (sale.customer_info) {
+        try {
+          customerInfo = JSON.parse(sale.customer_info);
+        } catch (parseError) {
+          customerInfo = null;
+        }
+      }
       
       // If customerInfo has salesperson with ID but no name, fetch the name from database
       if (customerInfo && customerInfo.salesperson && customerInfo.salesperson.id && !customerInfo.salesperson.name) {

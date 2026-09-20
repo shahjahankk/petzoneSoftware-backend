@@ -371,7 +371,12 @@ const createWarehouseSale = async (req, res, next) => {
       });
     }
 
-    const taxRate = await resolveWarehouseTaxRate(scopeWarehouseId || req.user.warehouseId);
+    const resolvedScopeWarehouseId =
+      (req.user.role === 'ADMIN' && req.headers['x-simulate-scope-id'])
+        ? parseInt(req.headers['x-simulate-scope-id'])
+        : req.body.scopeId || req.body.scopeWarehouseId || req.user.warehouseId || null;
+
+    const taxRate = await resolveWarehouseTaxRate(resolvedScopeWarehouseId);
     const calculatedTaxAmount = Math.round(normalizedSubtotal * (taxRate / 100) * 100) / 100;
     const requestedTaxAmount = parseNumber(taxAmount, parseNumber(tax, calculatedTaxAmount));
     if (requestedTaxAmount < 0 || Math.abs(requestedTaxAmount - calculatedTaxAmount) > 0.01) {
@@ -615,12 +620,7 @@ if (Math.abs(coverageSum - totalForValidation) > 0.01) {
       outstandingPayments,
       customerInfo: finalCustomerInfo,
       paymentTerms,
-     scopeWarehouseId: (req.user.role === 'ADMIN' && req.headers['x-simulate-scope-id'])
-            ? parseInt(req.headers['x-simulate-scope-id'])
-            : req.body.scopeId || 
-              req.body.scopeWarehouseId || 
-              req.user.warehouseId || 
-              null,    
+     scopeWarehouseId: resolvedScopeWarehouseId,    
                   outstandingPortion,
       isRefund: isRefund || isReturnTransaction,
       refundType: isReturnTransaction ? 'SALE_REFUND' : refundType,

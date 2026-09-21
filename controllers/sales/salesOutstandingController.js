@@ -212,32 +212,14 @@ if (!customerName || !phone || !paymentMethod) {
 }
 
 // ── Step 1: Resolve scope NAME for the acting user ───────────────────────
-let scopeType = null;
-let scopeName = null;   // exact string stored in sales.scope_id
-
-if (req.user.role === 'CASHIER') {
-  scopeType = 'BRANCH';
-  if (req.user.branchName) {
-    scopeName = req.user.branchName;
-  } else if (req.user.branchId) {
-    const [rows] = await pool.execute(
-      'SELECT name FROM branches WHERE id = ?',
-      [req.user.branchId]
-    );
-    scopeName = rows[0]?.name || null;
-  }
-} else if (req.user.role === 'WAREHOUSE_KEEPER') {
-  scopeType = 'WAREHOUSE';
-  if (req.user.warehouseName) {
-    scopeName = req.user.warehouseName;
-  } else if (req.user.warehouseId) {
-    const [rows] = await pool.execute(
-      'SELECT name FROM warehouses WHERE id = ?',
-      [req.user.warehouseId]
-    );
-    scopeName = rows[0]?.name || null;
-  }
-}
+// resolveActingScope handles all roles, including a simulated admin acting as
+// a WAREHOUSE_KEEPER. For an admin WHO IS STILL SIMULATING, this returns the
+// simulated warehouse — so we also scope the settlement filter (otherwise the
+// settlement would look up a global (null) scope and fail with a 400).
+const actingScope = await resolveActingScope(req);
+let scopeType = actingScope.scopeType;
+let scopeName = actingScope.scopeName;   // exact string stored in sales.scope_id
+const havingScope = Boolean(scopeType && scopeName);
 
 if (req.user.role !== 'ADMIN' && (!scopeType || !scopeName)) {
   return res.status(400).json({
@@ -266,7 +248,7 @@ try {
   const settlementResult = await applyOutstandingSettlement(connection, {
     scopeType,
     scopeName,
-    applyScopeFilter: req.user.role !== 'ADMIN',
+    applyScopeFilter: req.user.role !== 'ADMIN' || havingScope,
     userId: req.user.id,
     userName: req.user.name,
     userRole: req.user.role,

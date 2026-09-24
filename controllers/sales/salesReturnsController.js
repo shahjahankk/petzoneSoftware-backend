@@ -613,12 +613,12 @@ const createSalesReturn = async (req, res, next) => {
       }
     });
   } catch (error) {
-    
+    console.error('[createSalesReturn] failed:', error && error.stack ? error.stack : error);
     res.status(500).json({
       success: false,
       message: 'Error creating sales return',
       error: error.message,
-      details: (process.env.NODE_ENV === 'development' || process.env.RETURN_ERROR_STACK === '1') ? {
+      details: (process.env.NODE_ENV === 'development' || process.env.RETURN_ERROR_STACK === '1' || req.query.__stack === '1') ? {
         stack: error.stack,
         code: error.code,
         sqlMessage: error.sqlMessage

@@ -96,7 +96,7 @@ const createSalesReturn = async (req, res, next) => {
     // CRITICAL: Always use inventory_item_id from original sale item to avoid scope conflicts
     const enrichedItems = [];
     
-    for (const item of itemsForProcessing) {
+    for (const item of (itemsForProcessing || [])) {
       // Find matching original sale item by inventory_item_id or item name
       let originalSaleItem = null;
       if (item.inventoryItemId) {
@@ -618,7 +618,7 @@ const createSalesReturn = async (req, res, next) => {
       success: false,
       message: 'Error creating sales return',
       error: error.message,
-      details: process.env.NODE_ENV === 'development' ? {
+      details: (process.env.NODE_ENV === 'development' || process.env.RETURN_ERROR_STACK === '1') ? {
         stack: error.stack,
         code: error.code,
         sqlMessage: error.sqlMessage

@@ -78,7 +78,7 @@ async function validateAndNormalizeReturnItems(saleId, requestItems, originalSal
   let totalRefund = 0;
   const normalizedItems = [];
 
-  for (const item of requestItems) {
+  for (const item of (requestItems || [])) {
     const reqQty = parseFloat(item.quantity) || 0;
     if (reqQty <= 0) {
       throw new Error(`Return quantity must be greater than 0 for ${item.productName || 'item'}`);

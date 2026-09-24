@@ -89,7 +89,7 @@ class SalesReturn {
       };
 
       // Insert main return
-      const [result] = await insertWithReturnNo();
+      const result = await insertWithReturnNo();
 
       const returnId = result.insertId;
 

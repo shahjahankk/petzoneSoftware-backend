@@ -50,6 +50,7 @@
     "multer": "^2.0.2",
     "mysql2": "^3.15.3",
     "pdfkit": "^0.17.2",
+    "petzone-data-warehouse": "file:../../petzone-data-warehouse",
     "xlsx": "^0.18.5"
   }
 }

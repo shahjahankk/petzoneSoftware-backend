@@ -123,72 +123,109 @@ const getSales = async (req, res, next) => {
         
       }
     } else if (req.user.role === 'ADMIN') {
-      // Admin can filter by scopeType and/or scopeId
+      // Admin can filter by scopeType and/or scopeId. Resolve both name and ID
+      // without string-mutating existing clauses to avoid cross-scope leakage.
       if (scopeType && scopeType !== 'all') {
-        whereConditions.push('s.scope_type = ?');
-        params.push(scopeType);
-        
-        // If scopeId is also provided, handle both name (string) and ID (number) matching
-        if (scopeId && scopeId !== 'all') {
-          // Check if scopeId is numeric (branch/warehouse ID) or string (name)
-          const isNumeric = /^\d+$/.test(String(scopeId));
-          
-          if (scopeType === 'BRANCH' && isNumeric) {
-            // If scopeId is numeric, get branch name to match against sales.scope_id
-            const [branches] = await pool.execute('SELECT name FROM branches WHERE id = ?', [parseInt(scopeId)]);
-            if (branches.length > 0) {
-              whereConditions.push('(s.scope_id = ? OR s.scope_id = ?)');
-              params.push(branches[0].name, String(scopeId));
+        if (scopeType === 'BRANCH') {
+          if (scopeId && scopeId !== 'all') {
+            const isNumeric = /^\d+$/.test(String(scopeId));
+            if (isNumeric) {
+              const [branches] = await pool.execute('SELECT id, name FROM branches WHERE id = ?', [parseInt(scopeId)]);
+              if (branches.length > 0) {
+                whereConditions.push('(s.scope_type = ? AND (s.scope_id = ? OR s.scope_id = ? OR CAST(s.scope_id AS UNSIGNED) = ?))');
+                params.push('BRANCH', branches[0].name, String(scopeId), parseInt(scopeId));
+              } else {
+                whereConditions.push('(s.scope_type = ? AND s.scope_id = ?)');
+                params.push('BRANCH', String(scopeId));
+              }
             } else {
-              // Branch not found, match by ID as string
-              whereConditions.push('s.scope_id = ?');
-              params.push(String(scopeId));
-            }
-          } else if (scopeType === 'WAREHOUSE' && isNumeric) {
-            // If scopeId is numeric, get warehouse name to match against sales.scope_id
-            const [warehouses] = await pool.execute('SELECT name FROM warehouses WHERE id = ?', [parseInt(scopeId)]);
-            if (warehouses.length > 0) {
-              whereConditions.push('(s.scope_id = ? OR s.scope_id = ?)');
-              params.push(warehouses[0].name, String(scopeId));
-            } else {
-              // Warehouse not found, match by ID as string
-              whereConditions.push('s.scope_id = ?');
-              params.push(String(scopeId));
+              const [branches] = await pool.execute('SELECT id, name FROM branches WHERE name = ?', [scopeId]);
+              if (branches.length > 0) {
+                whereConditions.push('(s.scope_type = ? AND (s.scope_id = ? OR s.scope_id = ? OR CAST(s.scope_id AS UNSIGNED) = ?))');
+                params.push('BRANCH', scopeId, String(branches[0].id), parseInt(branches[0].id));
+              } else {
+                whereConditions.push('(s.scope_type = ? AND s.scope_id = ?)');
+                params.push('BRANCH', scopeId);
+              }
             }
           } else {
-            // scopeId is a string (name), match directly
+            whereConditions.push('s.scope_type = ?');
+            params.push('BRANCH');
+          }
+        } else if (scopeType === 'WAREHOUSE') {
+          if (scopeId && scopeId !== 'all') {
+            const isNumeric = /^\d+$/.test(String(scopeId));
+            if (isNumeric) {
+              const [warehouses] = await pool.execute('SELECT id, name FROM warehouses WHERE id = ?', [parseInt(scopeId)]);
+              if (warehouses.length > 0) {
+                whereConditions.push('(s.scope_type = ? AND (s.scope_id = ? OR s.scope_id = ? OR CAST(s.scope_id AS UNSIGNED) = ?))');
+                params.push('WAREHOUSE', warehouses[0].name, String(scopeId), parseInt(scopeId));
+              } else {
+                whereConditions.push('(s.scope_type = ? AND s.scope_id = ?)');
+                params.push('WAREHOUSE', String(scopeId));
+              }
+            } else {
+              const [warehouses] = await pool.execute('SELECT id, name FROM warehouses WHERE name = ?', [scopeId]);
+              if (warehouses.length > 0) {
+                whereConditions.push('(s.scope_type = ? AND (s.scope_id = ? OR s.scope_id = ? OR CAST(s.scope_id AS UNSIGNED) = ?))');
+                params.push('WAREHOUSE', scopeId, String(warehouses[0].id), parseInt(warehouses[0].id));
+              } else {
+                whereConditions.push('(s.scope_type = ? AND s.scope_id = ?)');
+                params.push('WAREHOUSE', scopeId);
+              }
+            }
+          } else {
+            whereConditions.push('s.scope_type = ?');
+            params.push('WAREHOUSE');
+          }
+        } else {
+          whereConditions.push('s.scope_type = ?');
+          params.push(scopeType);
+          if (scopeId && scopeId !== 'all') {
             whereConditions.push('(s.scope_id = ? OR s.scope_id = ?)');
             params.push(scopeId, String(scopeId));
           }
         }
       } else if (scopeId && scopeId !== 'all') {
-        // If only scopeId is provided without scopeType, try to match by both BRANCH and WAREHOUSE
+        // If only scopeId is provided without scopeType, match by either branch or warehouse
         const isNumeric = /^\d+$/.test(String(scopeId));
-        
+        const idNum = isNumeric ? parseInt(scopeId) : null;
+        const scopeConditions = [];
+        const scopeParams = [];
+
         if (isNumeric) {
-          // Try to find branch or warehouse with this ID
-          const [branches] = await pool.execute('SELECT name FROM branches WHERE id = ?', [parseInt(scopeId)]);
-          const [warehouses] = await pool.execute('SELECT name FROM warehouses WHERE id = ?', [parseInt(scopeId)]);
-          
-          if (branches.length > 0) {
-            whereConditions.push('(s.scope_type = ? AND (s.scope_id = ? OR s.scope_id = ?))');
-            params.push('BRANCH', branches[0].name, String(scopeId));
+          const [branches] = await pool.execute('SELECT id, name FROM branches WHERE id = ?', [idNum]);
+          for (const b of branches) {
+            scopeConditions.push('(s.scope_type = ? AND (s.scope_id = ? OR s.scope_id = ? OR CAST(s.scope_id AS UNSIGNED) = ?))');
+            scopeParams.push('BRANCH', b.name, String(scopeId), idNum);
           }
-          if (warehouses.length > 0) {
-            if (branches.length > 0) {
-              // Add OR condition for warehouse
-              whereConditions[whereConditions.length - 1] = whereConditions[whereConditions.length - 1].replace(')', '') + ' OR (s.scope_type = ? AND (s.scope_id = ? OR s.scope_id = ?)))';
-              params.push('WAREHOUSE', warehouses[0].name, String(scopeId));
-            } else {
-              whereConditions.push('(s.scope_type = ? AND (s.scope_id = ? OR s.scope_id = ?))');
-              params.push('WAREHOUSE', warehouses[0].name, String(scopeId));
-            }
+          const [warehouses] = await pool.execute('SELECT id, name FROM warehouses WHERE id = ?', [idNum]);
+          for (const w of warehouses) {
+            scopeConditions.push('(s.scope_type = ? AND (s.scope_id = ? OR s.scope_id = ? OR CAST(s.scope_id AS UNSIGNED) = ?))');
+            scopeParams.push('WAREHOUSE', w.name, String(scopeId), idNum);
           }
         } else {
-          // scopeId is a string, match by name for both BRANCH and WAREHOUSE
-          whereConditions.push('((s.scope_type = ? AND s.scope_id = ?) OR (s.scope_type = ? AND s.scope_id = ?))');
-          params.push('BRANCH', scopeId, 'WAREHOUSE', scopeId);
+          const [branches] = await pool.execute('SELECT id, name FROM branches WHERE name = ?', [scopeId]);
+          for (const b of branches) {
+            scopeConditions.push('(s.scope_type = ? AND (s.scope_id = ? OR s.scope_id = ? OR CAST(s.scope_id AS UNSIGNED) = ?))');
+            scopeParams.push('BRANCH', scopeId, String(b.id), parseInt(b.id));
+          }
+          const [warehouses] = await pool.execute('SELECT id, name FROM warehouses WHERE name = ?', [scopeId]);
+          for (const w of warehouses) {
+            scopeConditions.push('(s.scope_type = ? AND (s.scope_id = ? OR s.scope_id = ? OR CAST(s.scope_id AS UNSIGNED) = ?))');
+            scopeParams.push('WAREHOUSE', scopeId, String(w.id), parseInt(w.id));
+          }
+          if (scopeConditions.length === 0) {
+            scopeConditions.push('((s.scope_type = ? AND (s.scope_id = ? OR s.scope_id = ?)) OR (s.scope_type = ? AND (s.scope_id = ? OR s.scope_id = ?)))');
+            scopeParams.push('BRANCH', scopeId, String(scopeId), 'WAREHOUSE', scopeId, String(scopeId));
+          }
         }
+
+        if (scopeConditions.length > 0) {
+          whereConditions.push(`(${scopeConditions.join(' OR ')})`);
+          params.push(...scopeParams);
+        }
+        // If nothing found, do not restrict (admin still sees all or other filters apply)
       }
       // If neither scopeType nor scopeId is provided, show all sales (no scope filtering)
     }
@@ -432,34 +469,42 @@ const getSale = async (req, res, next) => {
 
     // Check access permissions
     if (req.user.role !== 'ADMIN') {
-      // For cashiers, get branch name if not already available
-      let userBranchName = req.user.branchName;
-      if (req.user.role === 'CASHIER' && !userBranchName && req.user.branchId) {
-        const [branches] = await pool.execute('SELECT name FROM branches WHERE id = ?', [req.user.branchId]);
-        userBranchName = branches[0]?.name || null;
-      }
-      
-      if (req.user.role === 'CASHIER' && 
-          (sale.scopeType !== 'BRANCH' || sale.scopeId !== userBranchName)) {
-        return res.status(403).json({
-          success: false,
-          message: 'Access denied'
-        });
-      }
-      
-      // For warehouse keepers, get warehouse name if not already available
-      let userWarehouseName = req.user.warehouseName;
-      if (req.user.role === 'WAREHOUSE_KEEPER' && !userWarehouseName && req.user.warehouseId) {
-        const [warehouses] = await pool.execute('SELECT name FROM warehouses WHERE id = ?', [req.user.warehouseId]);
-        userWarehouseName = warehouses[0]?.name || null;
-      }
-      
-      if (req.user.role === 'WAREHOUSE_KEEPER' && 
-          (sale.scopeType !== 'WAREHOUSE' || sale.scopeId !== userWarehouseName)) {
-        return res.status(403).json({
-          success: false,
-          message: 'Access denied'
-        });
+      if (req.user.role === 'CASHIER') {
+        let userBranchName = req.user.branchName;
+        let userBranchId = req.user.branchId;
+        if ((!userBranchName || !userBranchId) && req.user.branchId) {
+          const [branches] = await pool.execute('SELECT id, name FROM branches WHERE id = ?', [req.user.branchId]);
+          if (branches.length) {
+            userBranchName = userBranchName || branches[0].name;
+            userBranchId = userBranchId || branches[0].id;
+          }
+        }
+        const matchScope = (sale.scopeType === 'BRANCH') && (
+          (userBranchName && String(sale.scopeId) === String(userBranchName)) ||
+          (userBranchId && String(sale.scopeId) === String(userBranchId)) ||
+          (userBranchId && !isNaN(Number(sale.scopeId)) && Number(sale.scopeId) === Number(userBranchId))
+        );
+        if (!matchScope) {
+          return res.status(403).json({ success: false, message: 'Access denied' });
+        }
+      } else if (req.user.role === 'WAREHOUSE_KEEPER') {
+        let userWarehouseName = req.user.warehouseName;
+        let userWarehouseId = req.user.warehouseId;
+        if ((!userWarehouseName || !userWarehouseId) && req.user.warehouseId) {
+          const [warehouses] = await pool.execute('SELECT id, name FROM warehouses WHERE id = ?', [req.user.warehouseId]);
+          if (warehouses.length) {
+            userWarehouseName = userWarehouseName || warehouses[0].name;
+            userWarehouseId = userWarehouseId || warehouses[0].id;
+          }
+        }
+        const matchScope = (sale.scopeType === 'WAREHOUSE') && (
+          (userWarehouseName && String(sale.scopeId) === String(userWarehouseName)) ||
+          (userWarehouseId && String(sale.scopeId) === String(userWarehouseId)) ||
+          (userWarehouseId && !isNaN(Number(sale.scopeId)) && Number(sale.scopeId) === Number(userWarehouseId))
+        );
+        if (!matchScope) {
+          return res.status(403).json({ success: false, message: 'Access denied' });
+        }
       }
     }
 

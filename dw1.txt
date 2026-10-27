@@ -1,0 +1,18 @@
+﻿node : node:internal/modules/cjs/loader:1215
+At line:1 char:1
++ node --check ..\..\petzone-data-warehouse\app.js 2>&1 | Out-File dw1. ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (node:internal/modules/cjs/loader:1215:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  throw err;
+  ^
+
+Error: Cannot find module 'D:\demo-project-tychora\shahjahan-github\petzone-data-warehouse\app.js'
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1212:15)
+    at node:internal/main/check_syntax:33:20 {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: []
+}
+
+Node.js v20.19.1

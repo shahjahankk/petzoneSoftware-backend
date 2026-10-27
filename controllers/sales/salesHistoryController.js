@@ -16,36 +16,97 @@ const getCompanySalesHistory = async (req, res, next) => {
 
     // Apply role-based filtering
     if (req.user.role === 'CASHIER') {
-      // Get branch name if not already available
+      // Get branch name/ID if not already available
       let userBranchName = req.user.branchName;
-      if (!userBranchName && req.user.branchId) {
-        const [branches] = await pool.execute('SELECT name FROM branches WHERE id = ?', [req.user.branchId]);
-        userBranchName = branches[0]?.name || null;
+      let userBranchId = req.user.branchId;
+      if ((!userBranchName || !userBranchId) && req.user.branchId) {
+        const [branches] = await pool.execute('SELECT id, name FROM branches WHERE id = ?', [req.user.branchId]);
+        if (branches.length > 0) {
+          userBranchName = userBranchName || branches[0].name;
+          userBranchId = userBranchId || branches[0].id;
+        }
+      } else if (!userBranchName && userBranchId) {
+        const [branches] = await pool.execute('SELECT id, name FROM branches WHERE id = ?', [userBranchId]);
+        if (branches.length > 0) {
+          userBranchName = branches[0].name;
+        }
       }
-      
-      if (userBranchName) {
-        // Handle both string and number comparisons for scope_id
-        whereConditions.push('scope_type = ? AND (scope_id = ? OR scope_id = ?)');
-        params.push('BRANCH', userBranchName, String(userBranchName));
+
+      if (userBranchName && userBranchId) {
+        whereConditions.push(`(
+          s.scope_type = 'BRANCH' AND (
+            CAST(s.scope_id AS CHAR) COLLATE utf8mb4_bin = CAST(? AS CHAR) COLLATE utf8mb4_bin OR
+            CAST(s.scope_id AS UNSIGNED) = ? OR
+            CAST(s.scope_id AS CHAR) COLLATE utf8mb4_bin = CAST(? AS CHAR) COLLATE utf8mb4_bin
+          )
+        )`);
+        params.push(userBranchName, userBranchId, String(userBranchId));
+      } else if (userBranchName) {
+        whereConditions.push(`(
+          s.scope_type = 'BRANCH' AND (
+            CAST(s.scope_id AS CHAR) COLLATE utf8mb4_bin = CAST(? AS CHAR) COLLATE utf8mb4_bin OR
+            s.scope_id = ?
+          )
+        )`);
+        params.push(userBranchName, String(userBranchName));
+      } else if (userBranchId) {
+        whereConditions.push(`(
+          s.scope_type = 'BRANCH' AND (
+            CAST(s.scope_id AS UNSIGNED) = ? OR
+            CAST(s.scope_id AS CHAR) COLLATE utf8mb4_bin = CAST(? AS CHAR) COLLATE utf8mb4_bin
+          )
+        )`);
+        params.push(userBranchId, String(userBranchId));
       } else {
-        whereConditions.push('scope_type = ?');
-        params.push('BRANCH');
+        whereConditions.push("s.scope_type = 'BRANCH'");
       }
     } else if (req.user.role === 'WAREHOUSE_KEEPER') {
-      // Get warehouse name if not already available
+      // Get warehouse name/ID if not already available
       let userWarehouseName = req.user.warehouseName;
-      if (!userWarehouseName && req.user.warehouseId) {
-        const [warehouses] = await pool.execute('SELECT name FROM warehouses WHERE id = ?', [req.user.warehouseId]);
-        userWarehouseName = warehouses[0]?.name || null;
+      let userWarehouseId = req.user.warehouseId;
+      if ((!userWarehouseName || !userWarehouseId) && req.user.warehouseId) {
+        const [warehouses] = await pool.execute('SELECT id, name FROM warehouses WHERE id = ?', [req.user.warehouseId]);
+        if (warehouses.length > 0) {
+          userWarehouseName = userWarehouseName || warehouses[0].name;
+          userWarehouseId = userWarehouseId || warehouses[0].id;
+        }
+      } else if (!userWarehouseName && userWarehouseId) {
+        const [warehouses] = await pool.execute('SELECT id, name FROM warehouses WHERE id = ?', [userWarehouseId]);
+        if (warehouses.length > 0) {
+          userWarehouseName = warehouses[0].name;
+        }
       }
-      
-      if (userWarehouseName) {
-        whereConditions.push('scope_type = ? AND scope_id = ?');
-        params.push('WAREHOUSE', userWarehouseName);
+
+      if (userWarehouseName && userWarehouseId) {
+        whereConditions.push(`(
+          s.scope_type = 'WAREHOUSE' AND (
+            CAST(s.scope_id AS CHAR) COLLATE utf8mb4_bin = CAST(? AS CHAR) COLLATE utf8mb4_bin OR
+            CAST(s.scope_id AS UNSIGNED) = ? OR
+            CAST(s.scope_id AS CHAR) COLLATE utf8mb4_bin = CAST(? AS CHAR) COLLATE utf8mb4_bin
+          )
+        )`);
+        params.push(userWarehouseName, userWarehouseId, String(userWarehouseId));
+      } else if (userWarehouseName) {
+        whereConditions.push(`(
+          s.scope_type = 'WAREHOUSE' AND (
+            CAST(s.scope_id AS CHAR) COLLATE utf8mb4_bin = CAST(? AS CHAR) COLLATE utf8mb4_bin OR
+            s.scope_id = ?
+          )
+        )`);
+        params.push(userWarehouseName, String(userWarehouseName));
+      } else if (userWarehouseId) {
+        whereConditions.push(`(
+          s.scope_type = 'WAREHOUSE' AND (
+            CAST(s.scope_id AS UNSIGNED) = ? OR
+            CAST(s.scope_id AS CHAR) COLLATE utf8mb4_bin = CAST(? AS CHAR) COLLATE utf8mb4_bin
+          )
+        )`);
+        params.push(userWarehouseId, String(userWarehouseId));
       } else {
-        whereConditions.push('scope_type = ?');
-        params.push('WAREHOUSE');
+        whereConditions.push("s.scope_type = 'WAREHOUSE'");
       }
+    } else if (req.user.role === 'ADMIN') {
+      // Admin - no implicit scope restriction; rely on explicit filters if any
     }
 
     if (startDate) {
@@ -81,8 +142,16 @@ const getCompanySalesHistory = async (req, res, next) => {
         w.name as warehouse_name
       FROM sales s
       LEFT JOIN users u ON s.user_id = u.id
-      LEFT JOIN branches b ON s.scope_type = 'BRANCH' AND s.scope_id = b.name
-      LEFT JOIN warehouses w ON s.scope_type = 'WAREHOUSE' AND s.scope_id = w.name
+      LEFT JOIN branches b ON s.scope_type = 'BRANCH' AND (
+        CAST(s.scope_id AS CHAR) COLLATE utf8mb4_bin = CAST(b.name AS CHAR) COLLATE utf8mb4_bin OR
+        CAST(s.scope_id AS UNSIGNED) = b.id OR
+        CAST(b.id AS CHAR) COLLATE utf8mb4_bin = CAST(s.scope_id AS CHAR) COLLATE utf8mb4_bin
+      )
+      LEFT JOIN warehouses w ON s.scope_type = 'WAREHOUSE' AND (
+        CAST(s.scope_id AS CHAR) COLLATE utf8mb4_bin = CAST(w.name AS CHAR) COLLATE utf8mb4_bin OR
+        CAST(s.scope_id AS UNSIGNED) = w.id OR
+        CAST(w.id AS CHAR) COLLATE utf8mb4_bin = CAST(s.scope_id AS CHAR) COLLATE utf8mb4_bin
+      )
       ${whereClause}
       ORDER BY s.created_at DESC
       LIMIT ?
@@ -171,8 +240,16 @@ const getInvoiceDetails = async (req, res, next) => {
         w.name as warehouse_name
       FROM sales s
       LEFT JOIN users u ON s.user_id = u.id
-      LEFT JOIN branches b ON s.scope_type = 'BRANCH' AND s.scope_id = b.name
-      LEFT JOIN warehouses w ON s.scope_type = 'WAREHOUSE' AND s.scope_id = w.name
+      LEFT JOIN branches b ON s.scope_type = 'BRANCH' AND (
+        CAST(s.scope_id AS CHAR) COLLATE utf8mb4_bin = CAST(b.name AS CHAR) COLLATE utf8mb4_bin OR
+        CAST(s.scope_id AS UNSIGNED) = b.id OR
+        CAST(b.id AS CHAR) COLLATE utf8mb4_bin = CAST(s.scope_id AS CHAR) COLLATE utf8mb4_bin
+      )
+      LEFT JOIN warehouses w ON s.scope_type = 'WAREHOUSE' AND (
+        CAST(s.scope_id AS CHAR) COLLATE utf8mb4_bin = CAST(w.name AS CHAR) COLLATE utf8mb4_bin OR
+        CAST(s.scope_id AS UNSIGNED) = w.id OR
+        CAST(w.id AS CHAR) COLLATE utf8mb4_bin = CAST(s.scope_id AS CHAR) COLLATE utf8mb4_bin
+      )
       WHERE s.id = ? AND s.deleted_at IS NULL
     `, [invoiceId]);
     

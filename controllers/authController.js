@@ -93,7 +93,11 @@ const login = async (req, res, next) => {
 // @access  Private
 const logout = async (req, res, next) => {
   try {
-    // Clear refresh token from user
+    // NOTE: We intentionally do NOT close active shift sessions on logout.
+    // A cashier who logs out and logs back in the same day should resume
+    // their existing open shift. Shifts are closed only by:
+    //   - explicit "End Shift" (POST /api/shifts/end-session), or
+    //   - the midnight auto-close scheduler.
     if (req.user) {
       await User.updateRefreshToken(req.user.id, null);
     }
@@ -103,13 +107,13 @@ const logout = async (req, res, next) => {
 
     res.json({
       success: true,
-      message: 'Logout successful'
+      message: 'Logout successful',
     });
   } catch (error) {
     res.status(500).json({
       success: false,
       message: 'Error during logout',
-      error: error.message
+      error: error.message,
     });
   }
 };

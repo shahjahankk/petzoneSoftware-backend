@@ -314,10 +314,20 @@ const startShift = async (req, res, next) => {
       [userId]
     );
 
+    // If user already has an active shift session, resume it (same-day continue)
     if (activeSessions.length > 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'You already have an active shift session. Please end it before starting a new one.'
+      const [existingSession] = await executeQuery(`
+        SELECT ss.*, s.name as shift_name, s.start_time, s.end_time 
+        FROM shift_sessions ss 
+        JOIN shifts s ON ss.shift_id = s.id 
+        WHERE ss.id = ?
+      `, [activeSessions[0].id]);
+
+      return res.json({
+        success: true,
+        message: 'Resumed existing shift session',
+        data: existingSession,
+        resumed: true,
       });
     }
 
@@ -351,7 +361,7 @@ const startShift = async (req, res, next) => {
   }
 };
 
-// @desc    End shift session
+// @desc    End shift session with closing summary
 // @route   POST /api/shifts/end-session
 // @access  Private (Admin, Warehouse Keeper, Cashier)
 const endShift = async (req, res, next) => {
@@ -381,6 +391,70 @@ const endShift = async (req, res, next) => {
     }
 
     const session = sessions[0];
+    const startTime = session.actual_start_time;
+    const endTime = new Date();
+
+    // ─── Closing summary: sales for this cashier during the session period ───
+
+    // Sales header totals (product + clinic combined)
+    const [salesSummary] = await executeQuery(`
+      SELECT 
+        COUNT(*) AS bill_count,
+        COALESCE(SUM(s.total), 0) AS total_sales,
+        COALESCE(SUM(s.subtotal), 0) AS total_subtotal,
+        COALESCE(SUM(s.tax), 0) AS total_tax,
+        COALESCE(SUM(s.discount), 0) AS total_discount,
+        COALESCE(SUM(CASE WHEN s.payment_method = 'CASH' THEN s.total ELSE 0 END), 0) AS cash_sales,
+        COALESCE(SUM(CASE WHEN s.payment_method = 'CARD' THEN s.total ELSE 0 END), 0) AS card_sales,
+        COALESCE(SUM(CASE WHEN s.payment_method = 'MOBILE_PAYMENT' THEN s.total ELSE 0 END), 0) AS mobile_sales,
+        COALESCE(SUM(CASE WHEN s.payment_method = 'FULLY_CREDIT' THEN s.total ELSE 0 END), 0) AS credit_sales,
+        COALESCE(SUM(CASE WHEN s.payment_type = 'OUTSTANDING_SETTLEMENT' THEN s.payment_amount ELSE 0 END), 0) AS settlements
+      FROM sales s
+      WHERE s.user_id = ?
+        AND s.status = 'COMPLETED'
+        AND s.deleted_at IS NULL
+        AND s.created_at BETWEEN ? AND ?
+    `, [userId, startTime, endTime]);
+
+    // Product / inventory line sales (non-clinic items)
+    const [productSales] = await executeQuery(`
+      SELECT COALESCE(SUM(si.total), 0) AS product_sales
+      FROM sale_items si
+      INNER JOIN sales s ON si.sale_id = s.id
+      WHERE s.user_id = ?
+        AND s.status = 'COMPLETED'
+        AND s.deleted_at IS NULL
+        AND si.inventory_item_id IS NOT NULL
+        AND s.created_at BETWEEN ? AND ?
+    `, [userId, startTime, endTime]);
+
+    // Clinic service line sales
+    const [clinicSales] = await executeQuery(`
+      SELECT COALESCE(SUM(si.total), 0) AS clinic_sales
+      FROM sale_items si
+      INNER JOIN sales s ON si.sale_id = s.id
+      WHERE s.user_id = ?
+        AND s.status = 'COMPLETED'
+        AND s.deleted_at IS NULL
+        AND si.clinic_service_id IS NOT NULL
+        AND s.created_at BETWEEN ? AND ?
+    `, [userId, startTime, endTime]);
+
+    const summary = salesSummary[0];
+    const closingSummary = {
+      bill_count: Number(summary.bill_count) || 0,
+      total_sales: Number(summary.total_sales) || 0,
+      total_subtotal: Number(summary.total_subtotal) || 0,
+      total_tax: Number(summary.total_tax) || 0,
+      total_discount: Number(summary.total_discount) || 0,
+      product_sales: Number(productSales[0]?.product_sales) || 0,
+      clinic_sales: Number(clinicSales[0]?.clinic_sales) || 0,
+      cash_sales: Number(summary.cash_sales) || 0,
+      card_sales: Number(summary.card_sales) || 0,
+      mobile_sales: Number(summary.mobile_sales) || 0,
+      credit_sales: Number(summary.credit_sales) || 0,
+      settlements: Number(summary.settlements) || 0,
+    };
 
     // End the shift session
     await executeQuery(`
@@ -400,13 +474,16 @@ const endShift = async (req, res, next) => {
     res.json({
       success: true,
       message: 'Shift session ended successfully',
-      data: updatedSession
+      data: {
+        ...updatedSession,
+        closing_summary: closingSummary,
+      },
     });
   } catch (error) {
     res.status(500).json({
       success: false,
       message: 'Error ending shift session',
-      error: error.message
+      error: error.message,
     });
   }
 };

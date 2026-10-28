@@ -60,6 +60,7 @@ const barcodeRoutes = require('./routes/barcode');
 const qmsRoutes = require('./routes/qms');
 const { startTrashScheduler } = require('./services/trashScheduler');
 const { startInventoryReconciliationJob } = require('./services/inventoryReconciliationJob');
+const { startShiftScheduler } = require('./services/shiftScheduler');
 
 const app = express();
 
@@ -271,6 +272,7 @@ if (process.env.NODE_ENV !== 'test') {
   try {
     startTrashScheduler();
     startInventoryReconciliationJob();
+    startShiftScheduler();
     const server = app.listen(PORT, '0.0.0.0', () => {
       const address = server.address();
       process.stdout.write(`Server running on http://${address.address}:${address.port} [${process.env.NODE_ENV || 'development'}]\n`);

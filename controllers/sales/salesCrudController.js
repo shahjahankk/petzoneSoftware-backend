@@ -816,19 +816,31 @@ const updateSale = async (req, res, next) => {
         
       }
 
-      // 3. Calculate payment amounts
+      // 3. Calculate payment amounts — recalculate based on payment method and new total
       let finalPaymentAmount = parseFloat(paymentAmount);
       let finalCreditAmount = parseFloat(creditAmount);
-      
-      if (isNaN(finalPaymentAmount)) {
-        finalPaymentAmount = parseFloat(sale.payment_amount) || 0;
-      }
-      
-      if (isNaN(finalCreditAmount)) {
-        finalCreditAmount = parseFloat(sale.credit_amount) || 0;
-      }
-      
       const finalPaymentMethod = paymentMethod || sale.payment_method;
+
+      // If paymentAmount/creditAmount not provided, calculate from payment method and new total
+      if (isNaN(finalPaymentAmount) || isNaN(finalCreditAmount)) {
+        // Use new total (from items/tax/discount) if provided, otherwise keep old total
+        const effectiveTotal = finalTotal || parseFloat(sale.sale_total) || 0;
+
+        if (finalPaymentMethod === 'FULLY_CREDIT') {
+          finalPaymentAmount = 0;
+          finalCreditAmount = effectiveTotal;
+        } else if (finalPaymentMethod === 'PARTIAL_PAYMENT') {
+          // Partial payment: default payment to total, credit to 0 (can be adjusted later)
+          finalPaymentAmount = effectiveTotal;
+          finalCreditAmount = 0;
+        } else {
+          // CASH, CARD, etc.: default full payment, no credit
+          finalPaymentAmount = effectiveTotal;
+          finalCreditAmount = 0;
+        }
+      }
+
+      // If FULLY_CREDIT explicitly set, override
       if (finalPaymentMethod === 'FULLY_CREDIT') {
         finalPaymentAmount = 0;
         finalCreditAmount = finalTotal;

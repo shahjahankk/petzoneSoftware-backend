@@ -284,26 +284,34 @@ const getSales = async (req, res, next) => {
     }
 
     // Admin scope search by branch/warehouse name or id
+    // When scopeType is explicitly set (BRANCH/WAREHOUSE), use exact name matching
+    // to avoid partial matching across similar branch/warehouse names
     if (scopeSearch && req.user.role === 'ADMIN') {
       const term = `%${scopeSearch}%`;
-      whereConditions.push(`
-        (
+      // When scopeType is BRANCH or WAREHOUSE, use EXISTS with exact name matching
+      // Otherwise allow scope_id LIKE matching for unscoped search
+      if (scopeType && scopeType !== 'all') {
+        // scopeType is set - use EXISTS subquery with the provided scopeId/name
+        whereConditions.push(`
+          s.scope_type = ?
+          AND EXISTS (
+            SELECT 1 FROM branches b
+            WHERE b.scope_type = ? AND b.id = s.scope_id
+          )
+        `);
+        params.push('BRANCH', 'BRANCH');
+        // If specific scopeId provided, also match by name exactly
+        if (scopeId && scopeId !== 'all') {
+          whereConditions.push('AND (b.name = ? OR w.name = ?)');
+          params.push(scopeId, scopeId);
+        }
+      } else {
+        // No scopeType filter - use LIKE on scope_id for broad search
+        whereConditions.push(`
           s.scope_id LIKE ?
-          OR (
-            s.scope_type = 'BRANCH' AND EXISTS (
-              SELECT 1 FROM branches b
-              WHERE b.id = s.scope_id OR b.name LIKE ?
-            )
-          )
-          OR (
-            s.scope_type = 'WAREHOUSE' AND EXISTS (
-              SELECT 1 FROM warehouses w
-              WHERE w.id = s.scope_id OR w.name LIKE ?
-            )
-          )
-        )
-      `);
-      params.push(term, term, term);
+        `);
+        params.push(term);
+      }
     }
     
     // If scopeSearch is used but scopeType is not set, default to BRANCH for filtering

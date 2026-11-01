@@ -305,6 +305,13 @@ const getSales = async (req, res, next) => {
       `);
       params.push(term, term, term);
     }
+    
+    // If scopeSearch is used but scopeType is not set, default to BRANCH for filtering
+    // This ensures scope search returns meaningful results even when scopeType filter is 'all'
+    if (scopeSearch && req.user.role === 'ADMIN' && !scopeType) {
+      whereConditions.push('s.scope_type = ?');
+      params.push('BRANCH');
+    }
 
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
 

@@ -40,16 +40,26 @@ function matchOriginalSaleItem(requestItem, originalSaleItems) {
  * Server-side return validation: qty caps vs prior returns and refund allocation
  * from the original sale's discounted, tax-inclusive line values.
  */
-async function validateAndNormalizeReturnItems(saleId, requestItems, originalSaleItems, originalSale = {}, connection = null) {
+async function validateAndNormalizeReturnItems(
+  saleId,
+  requestItems,
+  originalSaleItems,
+  originalSale = {},
+  connection = null,
+  excludeReturnId = null
+) {
   const executor = connection || pool
+  const excludeReturnClause = excludeReturnId == null ? '' : 'AND sr.id <> ?'
+  const priorParams = excludeReturnId == null ? [saleId] : [saleId, excludeReturnId]
   const [priorRows] = await executor.execute(
     `SELECT sri.inventory_item_id, sri.item_name, sri.quantity
      FROM sales_return_items sri
      INNER JOIN sales_returns sr ON sr.id = sri.return_id
      WHERE sr.original_sale_id = ?
        AND sr.status NOT IN ('CANCELLED', 'REJECTED')
+       ${excludeReturnClause}
      FOR UPDATE`,
-    [saleId]
+    priorParams
   );
 
   const returnedByInvId = new Map();

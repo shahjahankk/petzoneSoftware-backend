@@ -3,7 +3,10 @@ const { validationResult } = require('express-validator');
 const Sale = require('../../models/Sale');
 const SalesReturn = require('../../models/SalesReturn');
 const { pool } = require('../../config/database');
-const { createReturnTransaction } = require('../../middleware/stockTracking');
+const {
+  createReturnTransaction,
+  createAdjustmentTransaction,
+} = require('../../middleware/stockTracking');
 const LedgerService = require('../../services/ledgerService');
 const InventoryProjection = require('../../services/inventoryProjectionService');
 const { normalizeScope } = require('../../services/inventoryLedgerService');
@@ -1056,105 +1059,328 @@ const getSalesReturn = async (req, res, next) => {
 // @route   PUT /api/sales/returns/:id
 // @access  Private (Admin, Cashier, Warehouse Keeper)
 const updateSalesReturn = async (req, res, next) => {
+  let connection;
   try {
     const { id } = req.params;
-    const { status, notes, processedBy, approvedBy } = req.body;
+    const { status, reason, notes, processedBy, approvedBy, items } = req.body || {};
 
-    // Check if return exists
-    const [existingReturns] = await pool.execute(
-      'SELECT * FROM sales_returns WHERE id = ?',
+    if (!Array.isArray(items)) {
+      const [existingReturns] = await pool.execute(
+        'SELECT * FROM sales_returns WHERE id = ?',
+        [id]
+      );
+      if (!existingReturns.length) {
+        return res.status(404).json({ success: false, message: 'Sales return not found' });
+      }
+
+      const updateFields = [];
+      const params = [];
+      for (const [field, value] of Object.entries({ status, reason, notes, processedBy, approvedBy })) {
+        if (value === undefined) continue;
+        const column = field === 'processedBy' ? 'processed_by'
+          : field === 'approvedBy' ? 'approved_by' : field;
+        updateFields.push(`${column} = ?`);
+        params.push(value);
+      }
+      if (!updateFields.length) {
+        return res.status(400).json({ success: false, message: 'No fields to update' });
+      }
+      updateFields.push('updated_at = NOW()');
+      params.push(id);
+      await pool.execute(`UPDATE sales_returns SET ${updateFields.join(', ')} WHERE id = ?`, params);
+      const [updatedRows] = await pool.execute(`
+        SELECT sr.*, s.invoice_no, u.username, u.email,
+               u.username AS user_name,
+               p.username AS processed_by_username,
+               p.username AS processed_by_name,
+               b.name AS branch_name, w.name AS warehouse_name
+        FROM sales_returns sr
+        JOIN sales s ON sr.original_sale_id = s.id
+        LEFT JOIN users u ON sr.user_id = u.id
+        LEFT JOIN users p ON sr.processed_by = p.id
+        LEFT JOIN branches b ON s.scope_type = 'BRANCH' AND s.scope_id = b.name
+        LEFT JOIN warehouses w ON s.scope_type = 'WAREHOUSE' AND s.scope_id = w.name
+        WHERE sr.id = ?
+      `, [id]);
+      return res.json({ success: true, message: 'Sales return updated successfully', data: updatedRows[0] });
+    }
+
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    const [returnRows] = await connection.execute(
+      'SELECT * FROM sales_returns WHERE id = ? FOR UPDATE',
       [id]
     );
+    if (!returnRows.length) {
+      await connection.rollback();
+      return res.status(404).json({ success: false, message: 'Sales return not found' });
+    }
+    const existingReturn = returnRows[0];
+    if (['CANCELLED', 'REJECTED'].includes(String(existingReturn.status || '').toUpperCase())) {
+      await connection.rollback();
+      return res.status(409).json({ success: false, message: 'Cancelled or rejected returns cannot be edited' });
+    }
 
-    if (existingReturns.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'Sales return not found'
+    const [saleRows] = await connection.execute(
+      'SELECT * FROM sales WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+      [existingReturn.original_sale_id]
+    );
+    if (!saleRows.length) throw Object.assign(new Error('Original sale not found'), { statusCode: 404 });
+    const originalSale = saleRows[0];
+
+    if (req.user?.role === 'CASHIER') {
+      const [branches] = await connection.execute(
+        'SELECT id, name FROM branches WHERE id = ? OR name = ? LIMIT 1',
+        [req.user.branch_id || req.user.branchId || null, originalSale.scope_id]
+      );
+      const branch = branches[0];
+      if (originalSale.scope_type !== 'BRANCH' || !branch ||
+          (String(originalSale.scope_id) !== String(branch.id) && String(originalSale.scope_id) !== String(branch.name))) {
+        throw Object.assign(new Error('Access denied'), { statusCode: 403 });
+      }
+    } else if (req.user?.role === 'WAREHOUSE_KEEPER') {
+      const [warehouses] = await connection.execute(
+        'SELECT id, name FROM warehouses WHERE id = ? OR name = ? LIMIT 1',
+        [req.user.warehouse_id || req.user.warehouseId || null, originalSale.scope_id]
+      );
+      const warehouse = warehouses[0];
+      if (originalSale.scope_type !== 'WAREHOUSE' || !warehouse ||
+          (String(originalSale.scope_id) !== String(warehouse.id) && String(originalSale.scope_id) !== String(warehouse.name))) {
+        throw Object.assign(new Error('Access denied'), { statusCode: 403 });
+      }
+    }
+
+    const [originalSaleItems] = await connection.execute(
+      'SELECT * FROM sale_items WHERE sale_id = ? ORDER BY id FOR UPDATE',
+      [existingReturn.original_sale_id]
+    );
+    const [oldItems] = await connection.execute(
+      'SELECT * FROM sales_return_items WHERE return_id = ? ORDER BY id FOR UPDATE',
+      [id]
+    );
+    if (!oldItems.length) {
+      throw Object.assign(
+        new Error('This return has no saved item lines and cannot be safely edited'),
+        { statusCode: 409 }
+      );
+    }
+    if (!oldItems.length) {
+      throw Object.assign(
+        new Error('This return has no saved item lines and cannot be safely edited'),
+        { statusCode: 409 }
+      );
+    }
+    const [refundSales] = await connection.execute(
+      `SELECT * FROM sales
+       WHERE invoice_no = ? AND payment_method = 'REFUND' AND payment_type = 'REFUND'
+         AND deleted_at IS NULL
+       ORDER BY id DESC LIMIT 1 FOR UPDATE`,
+      [existingReturn.return_no]
+    );
+    if (!refundSales.length) {
+      throw Object.assign(new Error('Refund transaction is missing; this return cannot be safely edited'), { statusCode: 409 });
+    }
+
+    let validated;
+    try {
+      validated = await validateAndNormalizeReturnItems(
+        existingReturn.original_sale_id,
+        items,
+        originalSaleItems,
+        originalSale,
+        connection,
+        Number(id)
+      );
+    } catch (validationError) {
+      throw Object.assign(validationError, { statusCode: 400 });
+    }
+
+    const canonicalItems = [];
+    for (const item of validated.normalizedItems) {
+      const sourceItem = originalSaleItems.find((saleItem) => {
+        if (item.inventoryItemId != null && saleItem.inventory_item_id != null) {
+          return Number(item.inventoryItemId) === Number(saleItem.inventory_item_id);
+        }
+        return String(item.productName || '').trim().toLowerCase() ===
+          String(saleItem.item_name || saleItem.name || '').trim().toLowerCase();
+      });
+      if (!sourceItem) throw Object.assign(new Error(`Item "${item.productName}" was not found on the original sale`), { statusCode: 400 });
+
+      const inventoryItemId = sourceItem.inventory_item_id ?? null;
+      let inventory = null;
+      if (inventoryItemId != null) {
+        const [inventoryRows] = await connection.execute(
+          `SELECT id, name, sku, barcode, category, cost_price, scope_type, scope_id
+           FROM inventory_items WHERE id = ? FOR UPDATE`,
+          [inventoryItemId]
+        );
+        inventory = inventoryRows[0] || null;
+        if (!inventory) throw Object.assign(new Error(`Inventory item ${inventoryItemId} no longer exists`), { statusCode: 409 });
+      }
+
+      canonicalItems.push({
+        inventoryItemId,
+        itemName: sourceItem.item_name || sourceItem.name || item.productName,
+        sku: sourceItem.sku || inventory?.sku || 'N/A',
+        barcode: inventory?.barcode || null,
+        category: inventory?.category || null,
+        quantity: Number(item.quantity),
+        originalQuantity: Number(sourceItem.quantity) || 0,
+        remainingQuantity: 0,
+        unitPrice: Number(item.unitPrice) || 0,
+        refundAmount: Number(item.refundAmount) || 0,
+        costPrice: Number(inventory?.cost_price) || 0,
       });
     }
 
-    const existingReturn = existingReturns[0];
-
-    // Build update query dynamically
-    const updateFields = [];
-    const params = [];
-
-    if (status !== undefined) {
-      updateFields.push('status = ?');
-      params.push(status);
+    const oldQtyByInventory = new Map();
+    const newQtyByInventory = new Map();
+    for (const item of oldItems) {
+      if (item.inventory_item_id == null) continue;
+      const itemId = Number(item.inventory_item_id);
+      oldQtyByInventory.set(itemId, (oldQtyByInventory.get(itemId) || 0) + (Number(item.quantity) || 0));
+    }
+    for (const item of canonicalItems) {
+      if (item.inventoryItemId == null) continue;
+      newQtyByInventory.set(item.inventoryItemId, (newQtyByInventory.get(item.inventoryItemId) || 0) + item.quantity);
     }
 
-    if (notes !== undefined) {
-      updateFields.push('notes = ?');
-      params.push(notes);
+    const actorName = req.user?.name || req.user?.username || req.user?.email || 'System';
+    const actorRole = req.user?.role || 'ADMIN';
+    const itemIds = new Set([...oldQtyByInventory.keys(), ...newQtyByInventory.keys()]);
+    for (const inventoryItemId of itemIds) {
+      const delta = (newQtyByInventory.get(inventoryItemId) || 0) - (oldQtyByInventory.get(inventoryItemId) || 0);
+      if (Math.abs(delta) < 0.0001) continue;
+      const [inventoryRows] = await connection.execute(
+        'SELECT current_stock, scope_type, scope_id, cost_price FROM inventory_items WHERE id = ? FOR UPDATE',
+        [inventoryItemId]
+      );
+      const inventory = inventoryRows[0];
+      if (!inventory) throw Object.assign(new Error(`Inventory item ${inventoryItemId} no longer exists`), { statusCode: 409 });
+      const previousStock = Number(inventory.current_stock) || 0;
+      const quantity = Math.abs(delta);
+
+      await InventoryProjection.applyEvent(connection, {
+        event_type: delta > 0 ? 'RETURN' : 'ADJUSTMENT',
+        inventory_item_id: inventoryItemId,
+        scope_type: normalizeScope(inventory.scope_type),
+        scope_id: String(inventory.scope_id != null ? inventory.scope_id : ''),
+        quantity_in: delta > 0 ? quantity : 0,
+        quantity_out: delta < 0 ? quantity : 0,
+        reference_type: 'sales_return_edit',
+        reference_id: `${id}:edit:${Date.now()}:${inventoryItemId}`,
+        unit_cost: Number(inventory.cost_price) || 0,
+        entry_date: new Date(),
+        created_by: req.user?.id || null,
+      });
+
+      const [stockRows] = await connection.execute(
+        'SELECT current_stock FROM inventory_items WHERE id = ?',
+        [inventoryItemId]
+      );
+      const nextStock = Number(stockRows[0]?.current_stock) || 0;
+      if (delta > 0) {
+        const item = canonicalItems.find((line) => line.inventoryItemId === inventoryItemId);
+        await createReturnTransaction(
+          inventoryItemId, quantity, Number(item?.unitPrice) || 0,
+          req.user?.id, actorName, actorRole, Number(id), connection,
+          inventory.scope_type, inventory.scope_id, true
+        );
+      } else {
+        await createAdjustmentTransaction(
+          inventoryItemId, previousStock, nextStock, req.user?.id, actorName, actorRole,
+          `Return ${existingReturn.return_no} item correction`, connection
+        );
+      }
     }
 
-    if (processedBy !== undefined) {
-      updateFields.push('processed_by = ?');
-      params.push(processedBy);
+    const totalRefund = Number(validated.totalRefund) || 0;
+    await connection.execute('DELETE FROM sales_return_items WHERE return_id = ?', [id]);
+    for (const item of canonicalItems) {
+      await connection.execute(
+        `INSERT INTO sales_return_items (
+          return_id, inventory_item_id, item_name, sku, barcode, category,
+          quantity, original_quantity, remaining_quantity, unit_price, refund_amount
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [id, item.inventoryItemId, item.itemName, item.sku, item.barcode, item.category,
+          item.quantity, item.originalQuantity, item.remainingQuantity, item.unitPrice, item.refundAmount]
+      );
     }
 
-    if (approvedBy !== undefined) {
-      updateFields.push('approved_by = ?');
-      params.push(approvedBy);
-    }
+    const nextStatus = status === undefined ? existingReturn.status : status;
+    const nextReason = reason === undefined ? existingReturn.reason : reason;
+    const nextNotes = notes === undefined ? existingReturn.notes : notes;
+    await connection.execute(
+      `UPDATE sales_returns
+       SET reason = ?, notes = ?, total_refund = ?, status = ?,
+           processed_by = COALESCE(?, processed_by), approved_by = COALESCE(?, approved_by), updated_at = NOW()
+       WHERE id = ?`,
+      [nextReason, nextNotes, totalRefund, nextStatus, processedBy ?? null, approvedBy ?? null, id]
+    );
 
-    if (updateFields.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'No fields to update'
+    const refundSale = refundSales[0];
+    await connection.execute(
+      `UPDATE sales
+       SET subtotal = ?, total = ?, payment_amount = ?, credit_amount = 0,
+           notes = ?, updated_at = NOW()
+       WHERE id = ?`,
+      [-totalRefund, -totalRefund, -totalRefund, nextNotes, refundSale.id]
+    );
+    const [updatedSaleRows] = await connection.execute('SELECT * FROM sales WHERE id = ?', [refundSale.id]);
+    const updatedRefundSale = updatedSaleRows[0];
+
+    await LedgerService.removeEntriesForSaleReference(connection, Number(id));
+    await LedgerService.recordReturnTransaction({
+      returnId: Number(id), returnNo: existingReturn.return_no,
+      originalSaleId: existingReturn.original_sale_id, originalSale,
+      scopeType: originalSale.scope_type, scopeId: originalSale.scope_id,
+      totalRefund, items: canonicalItems, userId: req.user?.id,
+    }, connection);
+
+    if (await isLedgerMigrationComplete(connection)) {
+      await CustomerLedgerEntries.appendFromSalesRow(connection, updatedRefundSale);
+      const ledgerParty = {
+        scopeType: updatedRefundSale.scope_type, scopeId: updatedRefundSale.scope_id,
+        retailerId: updatedRefundSale.retailer_id, customerName: updatedRefundSale.customer_name,
+        customerPhone: updatedRefundSale.customer_phone,
+      };
+      const finalBalance = await CustomerLedgerEntries.getCustomerBalance(connection, ledgerParty);
+      const { debit, credit } = CustomerLedgerEntries.debitCreditForSaleRow(updatedRefundSale);
+      await CustomerLedgerEntries.insertInvoiceSnapshot(connection, {
+        sale_id: updatedRefundSale.id, customer_id: updatedRefundSale.customer_id,
+        retailer_id: updatedRefundSale.retailer_id, scope_type: updatedRefundSale.scope_type,
+        scope_id: updatedRefundSale.scope_id, invoice_no: updatedRefundSale.invoice_no,
+        old_balance: finalBalance - (debit - credit), total: totalRefund,
+        payment: 0, final_balance: finalBalance,
+      });
+    } else {
+      const { recalculateCustomerLedger } = require('../../services/ledgerRecalcService');
+      await recalculateCustomerLedger({
+        retailerId: originalSale.retailer_id, customerPhone: originalSale.customer_phone,
+        customerName: originalSale.customer_name, scopeType: originalSale.scope_type,
+        scopeName: String(originalSale.scope_id), connection,
       });
     }
 
-    // Add updated_at timestamp
-    updateFields.push('updated_at = NOW()');
-    params.push(id);
-
-    const query = `UPDATE sales_returns SET ${updateFields.join(', ')} WHERE id = ?`;
-    
-
-    const [result] = await pool.execute(query, params);
-
-    if (result.affectedRows === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'Sales return not found or no changes made'
-      });
-    }
-
-    // Fetch updated return
-    const [updatedReturns] = await pool.execute(`
-      SELECT 
-        sr.*,
-        s.invoice_no,
-        u.username,
-        u.email,
-        u.username as user_name,
-        p.username as processed_by_username,
-        p.username as processed_by_name,
-        b.name as branch_name,
-        w.name as warehouse_name
-      FROM sales_returns sr
-      JOIN sales s ON sr.original_sale_id = s.id
-      LEFT JOIN users u ON sr.user_id = u.id
-      LEFT JOIN users p ON sr.processed_by = p.id
-      LEFT JOIN branches b ON s.scope_type = 'BRANCH' AND s.scope_id = b.name
-      LEFT JOIN warehouses w ON s.scope_type = 'WAREHOUSE' AND s.scope_id = w.name
-      WHERE sr.id = ?
-    `, [id]);
-
-    res.json({
+    const [updatedReturnRows] = await connection.execute('SELECT * FROM sales_returns WHERE id = ?', [id]);
+    await connection.commit();
+    return res.json({
       success: true,
-      message: 'Sales return updated successfully',
-      data: updatedReturns[0]
+      message: 'Sales return items and refund updated successfully',
+      data: { ...updatedReturnRows[0], items: canonicalItems },
     });
-
   } catch (error) {
-    res.status(500).json({
+    if (connection) {
+      try { await connection.rollback(); } catch (_) { /* connection may be closed */ }
+    }
+    return res.status(error.statusCode || 500).json({
       success: false,
-      message: 'Error updating sales return',
-      error: error.message
+      message: error.statusCode ? error.message : 'Error updating sales return',
+      ...(error.statusCode ? { statusCode: error.statusCode } : { error: error.message }),
     });
+  } finally {
+    if (connection) connection.release();
   }
 };
 

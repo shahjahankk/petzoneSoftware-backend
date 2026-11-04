@@ -883,9 +883,9 @@ const removeUserFromShift = async (req, res, next) => {
   }
 };
 
-// @desc    Shift cash report — opening/closing cash per session (admin overview)
+// @desc    Shift cash report — opening/closing cash per session
 // @route   GET /api/shifts/sessions
-// @access  Private (Admin, Warehouse Keeper)
+// @access  Private (Admin, Warehouse Keeper, Cashier — own sessions)
 const getShiftSessionsReport = async (req, res, next) => {
   try {
     const { dateFrom, dateTo, userId, status, branchId, warehouseId, limit } = req.query;
@@ -935,10 +935,7 @@ const getShiftSessionsReport = async (req, res, next) => {
       where.push('ss.status = ?');
       params.push(status);
     }
-    if (req.user.role === 'CASHIER' && req.user.branchId) {
-      where.push("s.scope_type = 'BRANCH' AND s.scope_id = ?");
-      params.push(req.user.branchId);
-    } else if (branchId) {
+    if (branchId) {
       where.push("s.scope_type = 'BRANCH' AND s.scope_id = ?");
       params.push(branchId);
     }

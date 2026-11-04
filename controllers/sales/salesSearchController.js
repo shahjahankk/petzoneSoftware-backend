@@ -113,7 +113,11 @@ const searchSales = async (req, res, next) => {
       throw new Error('Database connection failed');
     }
     
-    const { invoiceNumber, saleId } = req.query;
+    const { invoiceNumber, saleId, excludeReturnId: rawExcludeReturnId } = req.query;
+    const parsedExcludeReturnId = parseInt(rawExcludeReturnId, 10);
+    const excludeReturnId = Number.isInteger(parsedExcludeReturnId) && parsedExcludeReturnId > 0
+      ? parsedExcludeReturnId
+      : null
     
     if (!invoiceNumber && !saleId) {
       return res.status(400).json({
@@ -234,6 +238,32 @@ const searchSales = async (req, res, next) => {
         ORDER BY si.id
       `, [sale.id]);
 
+      const returnParams = [sale.id];
+      const excludeCurrentReturn = excludeReturnId == null ? '' : 'AND sr.id <> ?';
+      if (excludeReturnId != null) returnParams.push(excludeReturnId);
+      const [returnedRows] = await pool.execute(
+        `SELECT sri.inventory_item_id,
+                LOWER(TRIM(COALESCE(sri.item_name, ''))) AS item_name_key,
+                SUM(sri.quantity) AS returned_quantity
+         FROM sales_return_items sri
+         INNER JOIN sales_returns sr ON sr.id = sri.return_id
+         WHERE sr.original_sale_id = ?
+           AND sr.status NOT IN ('CANCELLED', 'REJECTED')
+           ${excludeCurrentReturn}
+         GROUP BY sri.inventory_item_id, LOWER(TRIM(COALESCE(sri.item_name, '')))` ,
+        returnParams
+      );
+      const returnedByInventoryId = new Map();
+      const returnedByName = new Map();
+      for (const row of returnedRows) {
+        const quantity = Number(row.returned_quantity) || 0;
+        if (row.inventory_item_id != null) {
+          returnedByInventoryId.set(Number(row.inventory_item_id), quantity);
+        } else {
+          returnedByName.set(row.item_name_key, quantity);
+        }
+      }
+
       // Parse customer_info and enrich with salesperson name if missing.
       // Malformed JSON in a single row must not 500 the whole search.
       let customerInfo = null;
@@ -263,20 +293,29 @@ const searchSales = async (req, res, next) => {
       const saleData = {
         ...sale,
         customerInfo: customerInfo,
-        items: items.map(item => ({
-          id: item.id,
-          inventoryItemId: item.inventory_item_id,
-          itemName: item.item_name || item.name,
-          name: item.item_name || item.name,
-          sku: item.sku,
-          quantity: item.quantity,
-          unitPrice: parseFloat(item.unit_price) || 0,
-          originalPrice: parseFloat(item.original_price) || 0,
-          discount: parseFloat(item.discount) || 0,
-          discountType: item.discount_type || 'amount',
-          total: parseFloat(item.total) || 0,
-          category: item.category
-        }))
+        items: items.map(item => {
+          const itemName = item.item_name || item.name || ''
+          const soldQuantity = Number(item.quantity) || 0
+          const returnedQuantity = item.inventory_item_id != null
+            ? (returnedByInventoryId.get(Number(item.inventory_item_id)) || 0)
+            : (returnedByName.get(String(itemName).trim().toLowerCase()) || 0)
+          return {
+            id: item.id,
+            inventoryItemId: item.inventory_item_id,
+            itemName,
+            name: itemName,
+            sku: item.sku,
+            quantity: soldQuantity,
+            alreadyReturnedQuantity: returnedQuantity,
+            remainingReturnableQuantity: Math.max(0, soldQuantity - returnedQuantity),
+            unitPrice: parseFloat(item.unit_price) || 0,
+            originalPrice: parseFloat(item.original_price) || 0,
+            discount: parseFloat(item.discount) || 0,
+            discountType: item.discount_type || 'amount',
+            total: parseFloat(item.total) || 0,
+            category: item.category
+          }
+        })
       };
       
       return saleData;

@@ -170,7 +170,11 @@ function ledgerJoinFromClause() {
     fromClause: `
     FROM customer_ledger_entries e
     INNER JOIN sales s ON s.id = e.ref_id AND s.deleted_at IS NULL
-    LEFT JOIN sales_returns sr ON sr.original_sale_id = s.id OR sr.return_no = s.invoice_no
+    LEFT JOIN (
+      SELECT return_no, MAX(id) AS id, MAX(reason) AS reason
+      FROM sales_returns
+      GROUP BY return_no
+    ) sr ON sr.return_no = s.invoice_no
     LEFT JOIN users u ON s.user_id = u.id
     LEFT JOIN branches b ON s.scope_type = 'BRANCH' AND s.scope_id = b.name
     LEFT JOIN warehouses w ON s.scope_type = 'WAREHOUSE' AND s.scope_id = w.name

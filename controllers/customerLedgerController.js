@@ -230,7 +230,11 @@ const getCustomerLedger = async (req, res) => {
           s.old_balance,
           s.running_balance
         FROM sales s
-        LEFT JOIN sales_returns sr ON sr.original_sale_id = s.id OR sr.return_no = s.invoice_no
+        LEFT JOIN (
+          SELECT return_no, MAX(id) AS id, MAX(reason) AS reason
+          FROM sales_returns
+          GROUP BY return_no
+        ) sr ON sr.return_no = s.invoice_no
         WHERE s.payment_method = 'REFUND' 
           AND s.payment_type = 'REFUND'
           AND s.deleted_at IS NULL
@@ -249,7 +253,11 @@ const getCustomerLedger = async (req, res) => {
             s.customer_phone,
             sr.return_no
           FROM sales s
-          LEFT JOIN sales_returns sr ON sr.original_sale_id = s.id OR sr.return_no = s.invoice_no
+          LEFT JOIN (
+            SELECT return_no, MAX(id) AS id, MAX(reason) AS reason
+            FROM sales_returns
+            GROUP BY return_no
+          ) sr ON sr.return_no = s.invoice_no
           WHERE s.payment_method = 'REFUND' AND s.payment_type = 'REFUND'
           AND s.deleted_at IS NULL
           ORDER BY s.created_at DESC
@@ -280,7 +288,11 @@ const getCustomerLedger = async (req, res) => {
         s.subtotal as amount,
         sr.id as return_id
       FROM sales s
-      LEFT JOIN sales_returns sr ON sr.original_sale_id = s.id OR sr.return_no = s.invoice_no
+      LEFT JOIN (
+        SELECT return_no, MAX(id) AS id, MAX(reason) AS reason
+        FROM sales_returns
+        GROUP BY return_no
+      ) sr ON sr.return_no = s.invoice_no
       ${whereClause}
       ORDER BY ${LEDGER_SORT_AT_S} ASC, s.id ASC
     `, params);
@@ -335,7 +347,11 @@ const getCustomerLedger = async (req, res) => {
           ELSE NULL
         END as return_refund_amount
       FROM sales s
-      LEFT JOIN sales_returns sr ON sr.original_sale_id = s.id OR sr.return_no = s.invoice_no
+      LEFT JOIN (
+        SELECT return_no, MAX(id) AS id, MAX(reason) AS reason
+        FROM sales_returns
+        GROUP BY return_no
+      ) sr ON sr.return_no = s.invoice_no
       LEFT JOIN users u ON s.user_id = u.id
       LEFT JOIN branches b ON s.scope_type = 'BRANCH' AND s.scope_id = b.name
       LEFT JOIN warehouses w ON s.scope_type = 'WAREHOUSE' AND s.scope_id = w.name
@@ -353,7 +369,11 @@ const getCustomerLedger = async (req, res) => {
     // Returns are now included in the main sales query, so just count sales
     const [countResult] = await pool.execute(`
       SELECT COUNT(*) as total FROM sales s
-      LEFT JOIN sales_returns sr ON sr.original_sale_id = s.id OR sr.return_no = s.invoice_no
+      LEFT JOIN (
+        SELECT return_no, MAX(id) AS id, MAX(reason) AS reason
+        FROM sales_returns
+        GROUP BY return_no
+      ) sr ON sr.return_no = s.invoice_no
       ${whereClause}
     `, params);
 
@@ -485,7 +505,11 @@ if (isAllCustomers) {
             ELSE NULL
           END as return_refund_amount
         FROM sales s
-        LEFT JOIN sales_returns sr ON sr.original_sale_id = s.id OR sr.return_no = s.invoice_no
+        LEFT JOIN (
+          SELECT return_no, MAX(id) AS id, MAX(reason) AS reason
+          FROM sales_returns
+          GROUP BY return_no
+        ) sr ON sr.return_no = s.invoice_no
         LEFT JOIN users u ON s.user_id = u.id
         ${custWhere}
         ORDER BY ${LEDGER_SORT_AT_S} ASC, s.id ASC
@@ -1259,7 +1283,11 @@ const [transactions] = await pool.execute(`
       sr.id as return_id,
       sr.reason as return_reason
     FROM sales s
-    LEFT JOIN sales_returns sr ON sr.original_sale_id = s.id OR sr.return_no = s.invoice_no
+    LEFT JOIN (
+      SELECT return_no, MAX(id) AS id, MAX(reason) AS reason
+      FROM sales_returns
+      GROUP BY return_no
+    ) sr ON sr.return_no = s.invoice_no
     LEFT JOIN users u ON s.user_id = u.id
     LEFT JOIN branches b ON s.scope_type = 'BRANCH' AND s.scope_id = b.name
     LEFT JOIN warehouses w ON s.scope_type = 'WAREHOUSE' AND s.scope_id = w.name
@@ -1377,7 +1405,11 @@ const getDetailedCustomerLedgerData = async (customerId, user, options = {}) => 
         ELSE NULL
       END as return_refund_amount
     FROM sales s
-    LEFT JOIN sales_returns sr ON sr.original_sale_id = s.id OR sr.return_no = s.invoice_no  -- ✅ CRITICAL: This was missing!
+    LEFT JOIN (
+      SELECT return_no, MAX(id) AS id, MAX(reason) AS reason
+      FROM sales_returns
+      GROUP BY return_no
+    ) sr ON sr.return_no = s.invoice_no
     LEFT JOIN users u ON s.user_id = u.id
     LEFT JOIN branches b ON s.scope_type = 'BRANCH' AND s.scope_id = b.name
     LEFT JOIN warehouses w ON s.scope_type = 'WAREHOUSE' AND s.scope_id = w.name

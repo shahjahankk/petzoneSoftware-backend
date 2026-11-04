@@ -701,6 +701,10 @@ const updateSale = async (req, res, next) => {
         // Calculate new subtotal from items
         finalSubtotal = 0;
         for (const item of items) {
+          const inventoryItemId = item.inventoryItemId ?? item.inventory_item_id ?? null;
+          const clinicServiceId = item.clinicServiceId ?? item.clinic_service_id ?? null;
+          const itemSku = item.sku ?? null;
+          const itemName = item.name ?? item.itemName ?? null;
           const itemQuantity = parseFloat(item.quantity) || 0;
           const itemUnitPrice = parseFloat(item.unitPrice) || parseFloat(item.unit_price) || 0;
           const itemDiscount = parseFloat(item.discount) || 0;
@@ -713,10 +717,10 @@ const updateSale = async (req, res, next) => {
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
           `, [
             id,
-            item.inventoryItemId || item.inventory_item_id,
-            item.clinicServiceId || item.clinic_service_id || null,
-            item.sku,
-            item.name || item.itemName,
+            inventoryItemId,
+            clinicServiceId,
+            itemSku,
+            itemName,
             itemQuantity,
             itemUnitPrice,
             itemDiscount,
@@ -726,7 +730,7 @@ const updateSale = async (req, res, next) => {
           ]);
           const newSaleItemId = insRow.insertId;
 
-          const invId = item.inventoryItemId || item.inventory_item_id;
+          const invId = inventoryItemId;
           if (invId && itemQuantity > 0) {
             const [scopeRows] = await connection.execute(
               'SELECT scope_type, scope_id FROM inventory_items WHERE id = ?',
@@ -764,7 +768,7 @@ const updateSale = async (req, res, next) => {
         
         // Step 2: Re-insert correct entries based on updated sale_items
         for (const item of items) {
-          const itemId = item.inventoryItemId || item.inventory_item_id;
+          const itemId = item.inventoryItemId ?? item.inventory_item_id ?? null;
           if (!itemId) continue;
           
           const itemQty = parseFloat(item.quantity) || 0;

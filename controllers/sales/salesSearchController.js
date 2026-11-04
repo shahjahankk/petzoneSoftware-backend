@@ -258,7 +258,8 @@ const searchSales = async (req, res, next) => {
       for (const row of returnedRows) {
         const quantity = Number(row.returned_quantity) || 0;
         if (row.inventory_item_id != null) {
-          returnedByInventoryId.set(Number(row.inventory_item_id), quantity);
+          const itemId = Number(row.inventory_item_id);
+          returnedByInventoryId.set(itemId, (returnedByInventoryId.get(itemId) || 0) + quantity);
         } else {
           returnedByName.set(row.item_name_key, quantity);
         }

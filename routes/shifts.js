@@ -11,6 +11,7 @@ router.get('/validate-pos-access', shiftController.validatePOSAccess);
 router.get('/branch/:branchId', requireWarehouseKeeper, shiftController.getShifts);
 router.get('/recent-sessions', requireCashier, shiftController.getRecentShiftSessions);
 router.get('/active/:cashierId', shiftController.getActiveShift);
+router.get('/sessions', requireCashier, shiftController.getShiftSessionsReport);
 router.post('/start-session', requireCashier, shiftController.startShift);
 router.post('/end-session', requireCashier, shiftController.endShift);
 router.get('/:id/stats', requireCashier, shiftController.getShiftStats);

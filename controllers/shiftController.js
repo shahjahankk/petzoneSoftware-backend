@@ -292,21 +292,81 @@ const startShift = async (req, res, next) => {
     const userId = req.user.id;
 
     // Validate required fields
-    if (!shiftId || initialCash === undefined) {
+    if (initialCash === undefined || initialCash === null || initialCash === '') {
       return res.status(400).json({
         success: false,
-        message: 'Shift ID and initial cash amount are required'
+        message: 'Initial cash amount is required'
       });
     }
 
-    // Check if shift exists
-    const shifts = await executeQuery('SELECT * FROM shifts WHERE id = ?', [shiftId]);
-    if (shifts.length === 0) {
+    // Resolve the actual shift row. The POS frontend sends placeholder values
+    // such as 'shift-branch' / 'shift-warehouse', so we must not rely on the
+    // client-supplied id existing in the shifts table.
+    const scopeType = req.user.warehouseId ? 'WAREHOUSE' : 'BRANCH';
+    const scopeId = req.user.warehouseId || req.user.branchId;
+
+    let shift = null;
+
+    if (shiftId !== undefined && shiftId !== null && shiftId !== '') {
+      const byId = await executeQuery('SELECT * FROM shifts WHERE id = ?', [shiftId]);
+      if (byId.length > 0) shift = byId[0];
+    }
+
+    if (!shift) {
+      const byUser = await executeQuery(`
+        SELECT * FROM shifts
+        WHERE user_id = ?
+        ORDER BY is_active DESC, created_at DESC
+        LIMIT 1
+      `, [userId]);
+      if (byUser.length > 0) shift = byUser[0];
+    }
+
+    if (!shift && scopeId) {
+      const byScope = await executeQuery(`
+        SELECT * FROM shifts
+        WHERE scope_type = ? AND scope_id = ?
+        ORDER BY is_active DESC, created_at DESC
+        LIMIT 1
+      `, [scopeType, scopeId]);
+      if (byScope.length > 0) shift = byScope[0];
+    }
+
+    // Still nothing? Create a shift for this user's assignment so a session
+    // can always be started for a valid cashier/warehouse keeper.
+    if (!shift && req.user.shift) {
+      let scopeName = '';
+      if (scopeType === 'BRANCH' && scopeId) {
+        const branch = await executeQuery('SELECT name FROM branches WHERE id = ?', [scopeId]);
+        scopeName = branch[0]?.name || '';
+      } else if (scopeType === 'WAREHOUSE' && scopeId) {
+        const warehouse = await executeQuery('SELECT name FROM warehouses WHERE id = ?', [scopeId]);
+        scopeName = warehouse[0]?.name || '';
+      }
+
+      const shiftName = scopeName
+        ? `${req.user.shift} Shift - ${scopeName}`
+        : `${req.user.shift} Shift`;
+      const startTime = req.user.shift === 'MORNING' ? '08:00:00' : req.user.shift === 'AFTERNOON' ? '12:00:00' : '20:00:00';
+      const endTime = req.user.shift === 'MORNING' ? '16:00:00' : req.user.shift === 'AFTERNOON' ? '20:00:00' : '08:00:00';
+
+      const created = await executeQuery(`
+        INSERT INTO shifts (name, start_time, end_time, scope_type, scope_id, user_id, is_active, created_by, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, 1, ?, NOW(), NOW())
+      `, [shiftName, startTime, endTime, scopeType, scopeId || null, userId, userId]);
+
+      const rows = await executeQuery('SELECT * FROM shifts WHERE id = ?', [created.insertId]);
+      shift = rows[0];
+    }
+
+    if (!shift) {
       return res.status(404).json({
         success: false,
-        message: 'Shift not found'
+        message: 'No shift is assigned to this user. Ask an admin to assign a shift.'
       });
     }
+
+    const resolvedShiftId = shift.id;
 
     // Check if user already has an active shift session
     const activeSessions = await executeQuery(
@@ -335,7 +395,7 @@ const startShift = async (req, res, next) => {
     const sessionResult = await executeQuery(`
       INSERT INTO shift_sessions (shift_id, user_id, status, actual_start_time, initial_cash, total_sales)
       VALUES (?, ?, 'ACTIVE', NOW(), ?, 0.00)
-    `, [shiftId, userId, parseFloat(initialCash)]);
+    `, [resolvedShiftId, userId, parseFloat(initialCash)]);
 
     const sessionId = sessionResult.insertId;
 
@@ -705,10 +765,27 @@ const validatePOSAccess = async (req, res, next) => {
 const getActiveShift = async (req, res, next) => {
   try {
     const { cashierId } = req.params;
+
+    // Accept either a numeric user id or a username/email (reports use names).
+    let resolvedUserId = cashierId;
+    if (cashierId && !/^\d+$/.test(String(cashierId))) {
+      const users = await executeQuery(
+        'SELECT id FROM users WHERE username = ? OR email = ? LIMIT 1',
+        [cashierId, cashierId]
+      );
+      if (users.length === 0) {
+        return res.json({
+          success: true,
+          data: null,
+          message: 'No active shift session found'
+        });
+      }
+      resolvedUserId = users[0].id;
+    }
     
     const shifts = await executeQuery(
       'SELECT ss.*, s.name as shift_name, s.start_time, s.end_time FROM shift_sessions ss JOIN shifts s ON ss.shift_id = s.id WHERE ss.user_id = ? AND ss.status = "ACTIVE" AND ss.actual_end_time IS NULL ORDER BY ss.actual_start_time DESC LIMIT 1',
-      [cashierId]
+      [resolvedUserId]
     );
     
     if (shifts.length === 0) {
@@ -806,6 +883,205 @@ const removeUserFromShift = async (req, res, next) => {
   }
 };
 
+// @desc    Shift cash report — opening/closing cash per session (admin overview)
+// @route   GET /api/shifts/sessions
+// @access  Private (Admin, Warehouse Keeper)
+const getShiftSessionsReport = async (req, res, next) => {
+  try {
+    const { dateFrom, dateTo, userId, status, branchId, warehouseId, limit } = req.query;
+
+    const emptyTotals = {
+      sessions: 0,
+      initial_cash: 0,
+      cash_sales: 0,
+      total_sales: 0,
+      final_cash: 0,
+      expected_cash: 0,
+      cash_difference: 0,
+    };
+
+    // Cashiers may only see their own sessions; admins/keepers may filter by
+    // user id, username or email.
+    let effectiveUserId = userId;
+    if (req.user.role === 'CASHIER') {
+      effectiveUserId = req.user.id;
+    } else if (userId && !/^\d+$/.test(String(userId))) {
+      const users = await executeQuery(
+        'SELECT id FROM users WHERE username = ? OR email = ? LIMIT 1',
+        [userId, userId]
+      );
+      if (users.length === 0) {
+        return res.json({ success: true, count: 0, data: [], totals: emptyTotals });
+      }
+      effectiveUserId = users[0].id;
+    }
+
+    const where = [];
+    const params = [];
+
+    if (dateFrom) {
+      where.push('ss.actual_start_time >= ?');
+      params.push(`${dateFrom} 00:00:00`);
+    }
+    if (dateTo) {
+      where.push('ss.actual_start_time <= ?');
+      params.push(`${dateTo} 23:59:59`);
+    }
+    if (effectiveUserId) {
+      where.push('ss.user_id = ?');
+      params.push(effectiveUserId);
+    }
+    if (status && status !== 'all') {
+      where.push('ss.status = ?');
+      params.push(status);
+    }
+    if (req.user.role === 'CASHIER' && req.user.branchId) {
+      where.push("s.scope_type = 'BRANCH' AND s.scope_id = ?");
+      params.push(req.user.branchId);
+    } else if (branchId) {
+      where.push("s.scope_type = 'BRANCH' AND s.scope_id = ?");
+      params.push(branchId);
+    }
+    if (warehouseId) {
+      where.push("s.scope_type = 'WAREHOUSE' AND s.scope_id = ?");
+      params.push(warehouseId);
+    }
+
+    const whereClause = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
+    const parsedLimit = parseInt(limit, 10);
+    const limitNum = Math.min(Math.max(Number.isFinite(parsedLimit) ? parsedLimit : 500, 1), 2000);
+
+    const sessions = await executeQuery(`
+      SELECT
+        ss.id,
+        ss.shift_id,
+        ss.user_id,
+        ss.status,
+        ss.actual_start_time,
+        ss.actual_end_time,
+        ss.initial_cash,
+        ss.final_cash,
+        s.name AS shift_name,
+        s.start_time,
+        s.end_time,
+        s.scope_type,
+        s.scope_id,
+        u.username AS cashier_name,
+        u.role,
+        b.name AS branch_name,
+        w.name AS warehouse_name
+      FROM shift_sessions ss
+      JOIN shifts s ON ss.shift_id = s.id
+      LEFT JOIN users u ON ss.user_id = u.id
+      LEFT JOIN branches b ON s.scope_type = 'BRANCH' AND s.scope_id = b.id
+      LEFT JOIN warehouses w ON s.scope_type = 'WAREHOUSE' AND s.scope_id = w.id
+      ${whereClause}
+      ORDER BY ss.actual_start_time DESC
+      LIMIT ${limitNum}
+    `, params);
+
+    if (sessions.length === 0) {
+      return res.json({
+        success: true,
+        count: 0,
+        data: [],
+        totals: {
+          sessions: 0,
+          initial_cash: 0,
+          cash_sales: 0,
+          total_sales: 0,
+          final_cash: 0,
+          expected_cash: 0,
+          cash_difference: 0,
+        },
+      });
+    }
+
+    const ids = sessions.map((session) => session.id);
+    const placeholders = ids.map(() => '?').join(',');
+    const salesRows = await executeQuery(`
+      SELECT
+        ss.id AS session_id,
+        COUNT(s.id) AS bill_count,
+        COALESCE(SUM(s.total), 0) AS total_sales,
+        COALESCE(SUM(CASE WHEN s.payment_method = 'CASH' THEN s.total ELSE 0 END), 0) AS cash_sales,
+        COALESCE(SUM(CASE WHEN s.payment_method = 'CARD' THEN s.total ELSE 0 END), 0) AS card_sales,
+        COALESCE(SUM(CASE WHEN s.payment_method = 'MOBILE_PAYMENT' THEN s.total ELSE 0 END), 0) AS mobile_sales,
+        COALESCE(SUM(CASE WHEN s.payment_method = 'FULLY_CREDIT' THEN s.total ELSE 0 END), 0) AS credit_sales
+      FROM shift_sessions ss
+      LEFT JOIN sales s
+        ON s.user_id = ss.user_id
+       AND s.status = 'COMPLETED'
+       AND s.deleted_at IS NULL
+       AND s.created_at >= ss.actual_start_time
+       AND s.created_at <= COALESCE(ss.actual_end_time, NOW())
+      WHERE ss.id IN (${placeholders})
+      GROUP BY ss.id
+    `, ids);
+
+    const salesBySession = {};
+    salesRows.forEach((row) => {
+      salesBySession[String(row.session_id)] = row;
+    });
+
+    const data = sessions.map((session) => {
+      const agg = salesBySession[String(session.id)] || {};
+      const initialCash = Number(session.initial_cash) || 0;
+      const cashSales = Number(agg.cash_sales) || 0;
+      const finalCash = session.final_cash === null || session.final_cash === undefined
+        ? null
+        : Number(session.final_cash);
+      const expectedCash = initialCash + cashSales;
+
+      return {
+        ...session,
+        initial_cash: initialCash,
+        final_cash: finalCash,
+        bill_count: Number(agg.bill_count) || 0,
+        total_sales: Number(agg.total_sales) || 0,
+        cash_sales: cashSales,
+        card_sales: Number(agg.card_sales) || 0,
+        mobile_sales: Number(agg.mobile_sales) || 0,
+        credit_sales: Number(agg.credit_sales) || 0,
+        expected_cash: expectedCash,
+        cash_difference: finalCash === null ? null : finalCash - expectedCash,
+      };
+    });
+
+    const totals = data.reduce((acc, row) => {
+      acc.sessions += 1;
+      acc.initial_cash += row.initial_cash;
+      acc.cash_sales += row.cash_sales;
+      acc.total_sales += row.total_sales;
+      acc.final_cash += row.final_cash || 0;
+      acc.expected_cash += row.expected_cash;
+      acc.cash_difference += row.cash_difference || 0;
+      return acc;
+    }, {
+      sessions: 0,
+      initial_cash: 0,
+      cash_sales: 0,
+      total_sales: 0,
+      final_cash: 0,
+      expected_cash: 0,
+      cash_difference: 0,
+    });
+
+    res.json({
+      success: true,
+      count: data.length,
+      data,
+      totals,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error generating shift cash report',
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   getShifts,
   getShift,
@@ -819,6 +1095,7 @@ module.exports = {
   validatePOSAccess,
   getActiveShift,
   getRecentShiftSessions,
+  getShiftSessionsReport,
   assignUserToShift,
   removeUserFromShift
 };

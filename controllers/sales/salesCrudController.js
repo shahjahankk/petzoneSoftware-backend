@@ -596,6 +596,7 @@ const updateSale = async (req, res, next) => {
       notes, 
       status, 
       paymentStatus,
+      saleDate,
       customerInfo,
       customerName,
       customerPhone
@@ -668,10 +669,17 @@ const updateSale = async (req, res, next) => {
       );
 
       // 2. Update sale items if provided
-      let finalSubtotal = parseFloat(subtotal) || parseFloat(sale.sale_subtotal) || 0;
-      let finalTotal = parseFloat(total) || parseFloat(sale.sale_total) || 0;
+      let finalSubtotal = Number.isFinite(Number(subtotal)) ? Number(subtotal) : (Number(sale.sale_subtotal) || 0);
+      let finalTotal = Number.isFinite(Number(total)) ? Number(total) : (Number(sale.sale_total) || 0);
+      const finalTax = tax === undefined ? (Number(sale.sale_tax) || 0) : (parseFloat(tax) || 0);
+      const finalDiscount = discount === undefined ? (Number(sale.sale_discount) || 0) : (parseFloat(discount) || 0);
+      let finalLineDiscount = 0;
       
-      if (items && Array.isArray(items) && items.length > 0) {
+      if (items !== undefined && (!Array.isArray(items) || items.length === 0)) {
+        throw Object.assign(new Error('An invoice must contain at least one item'), { statusCode: 400 });
+      }
+
+      if (Array.isArray(items)) {
 
         for (const oldItem of oldSaleItems) {
           if (!oldItem.inventory_item_id) continue;
@@ -708,7 +716,11 @@ const updateSale = async (req, res, next) => {
           const itemQuantity = parseFloat(item.quantity) || 0;
           const itemUnitPrice = parseFloat(item.unitPrice) || parseFloat(item.unit_price) || 0;
           const itemDiscount = parseFloat(item.discount) || 0;
-          const itemTotal = (itemQuantity * itemUnitPrice) - itemDiscount;
+          const itemGross = itemQuantity * itemUnitPrice;
+          const itemTotal = itemGross - itemDiscount;
+          if (itemQuantity <= 0 || itemUnitPrice < 0 || itemDiscount < 0 || itemDiscount > itemGross) {
+            throw Object.assign(new Error('Each invoice item must have a positive quantity and a valid price/discount'), { statusCode: 400 });
+          }
           
           const [insRow] = await connection.execute(`
             INSERT INTO sale_items (
@@ -751,11 +763,12 @@ const updateSale = async (req, res, next) => {
             }
           }
           
-          finalSubtotal += itemTotal;
+          finalSubtotal += itemGross;
+          finalLineDiscount += itemDiscount;
         }
         
         // Calculate final total
-        finalTotal = finalSubtotal + (parseFloat(tax) || 0) - (parseFloat(discount) || 0);
+        finalTotal = finalSubtotal + finalTax - finalLineDiscount - finalDiscount;
         
 
         // ✅ FIX: Delete old stock_reports entries and re-insert correct ones
@@ -836,34 +849,59 @@ const updateSale = async (req, res, next) => {
       }
 
       // 3. Calculate payment amounts — recalculate based on payment method and new total
-      let finalPaymentAmount = parseFloat(paymentAmount);
-      let finalCreditAmount = parseFloat(creditAmount);
-      const finalPaymentMethod = paymentMethod || sale.payment_method;
+      const finalPaymentMethod = paymentMethod ?? sale.payment_method;
+      const effectiveTotal = Math.max(0, finalTotal);
+      const hasPaymentAmount = paymentAmount !== undefined && paymentAmount !== null && paymentAmount !== '';
+      const hasCreditAmount = creditAmount !== undefined && creditAmount !== null && creditAmount !== '';
+      let finalPaymentAmount;
+      let finalCreditAmount;
 
-      // If paymentAmount/creditAmount not provided, calculate from payment method and new total
-      if (isNaN(finalPaymentAmount) || isNaN(finalCreditAmount)) {
-        // Use new total (from items/tax/discount) if provided, otherwise keep old total
-        const effectiveTotal = finalTotal || parseFloat(sale.sale_total) || 0;
-
-        if (finalPaymentMethod === 'FULLY_CREDIT') {
-          finalPaymentAmount = 0;
-          finalCreditAmount = effectiveTotal;
-        } else if (finalPaymentMethod === 'PARTIAL_PAYMENT') {
-          // Partial payment: default payment to total, credit to 0 (can be adjusted later)
-          finalPaymentAmount = effectiveTotal;
-          finalCreditAmount = 0;
-        } else {
-          // CASH, CARD, etc.: default full payment, no credit
-          finalPaymentAmount = effectiveTotal;
-          finalCreditAmount = 0;
-        }
-      }
-
-      // If FULLY_CREDIT explicitly set, override
       if (finalPaymentMethod === 'FULLY_CREDIT') {
         finalPaymentAmount = 0;
-        finalCreditAmount = finalTotal;
+        finalCreditAmount = effectiveTotal;
+      } else if (hasPaymentAmount) {
+        finalPaymentAmount = Number(paymentAmount);
+        finalCreditAmount = hasCreditAmount
+          ? Number(creditAmount)
+          : effectiveTotal - finalPaymentAmount;
+      } else if (hasCreditAmount) {
+        finalCreditAmount = Number(creditAmount);
+        finalPaymentAmount = effectiveTotal - finalCreditAmount;
+      } else {
+        const previousPayment = Number(sale.payment_amount);
+        finalPaymentAmount = Number.isFinite(previousPayment)
+          ? Math.min(Math.max(0, previousPayment), effectiveTotal)
+          : effectiveTotal;
+        finalCreditAmount = effectiveTotal - finalPaymentAmount;
       }
+
+      if (!Number.isFinite(finalPaymentAmount) || !Number.isFinite(finalCreditAmount) ||
+          finalPaymentAmount < 0 || finalCreditAmount < 0 ||
+          Math.abs(finalPaymentAmount + finalCreditAmount - effectiveTotal) > 0.01) {
+        throw Object.assign(
+          new Error('Payment amount and credit amount must be non-negative and equal the invoice total'),
+          { statusCode: 400 }
+        );
+      }
+
+      const specialPaymentTypes = new Set([
+        'OUTSTANDING_SETTLEMENT', 'CREDIT_REFUND_SETTLEMENT', 'BILTY_CHARGE', 'REFUND',
+      ]);
+      const finalPaymentType = specialPaymentTypes.has(String(sale.payment_type || '').toUpperCase())
+        ? sale.payment_type
+        : finalPaymentMethod === 'FULLY_CREDIT'
+          ? 'FULLY_CREDIT'
+          : finalCreditAmount > 0
+            ? 'PARTIAL_PAYMENT'
+            : 'FULL_PAYMENT';
+      const finalStatus = status ?? sale.status;
+      const finalSaleDate = saleDate === undefined ? sale.sale_date : (saleDate || null);
+      const finalNotes = notes === undefined ? sale.notes : notes;
+      const finalCustomerName = customerName === undefined ? sale.customer_name : customerName;
+      const finalCustomerPhone = customerPhone === undefined ? sale.customer_phone : customerPhone;
+      const finalCustomerInfo = customerInfo === undefined
+        ? sale.customer_info
+        : (customerInfo == null ? null : (typeof customerInfo === 'string' ? customerInfo : JSON.stringify(customerInfo)));
       
 
       const oldBalance = ledgerMigrationDone
@@ -874,7 +912,9 @@ const updateSale = async (req, res, next) => {
       // 4. Determine payment status
       let finalPaymentStatus = paymentStatus;
       if (!finalPaymentStatus) {
-        finalPaymentStatus = finalCreditAmount > 0 ? 'PENDING' : 'COMPLETED';
+        finalPaymentStatus = finalCreditAmount > 0
+          ? (finalPaymentAmount > 0 ? 'PARTIAL' : 'PENDING')
+          : 'COMPLETED';
       }
       
       const finalCreditStatus = finalCreditAmount > 0 ? 'PENDING' : 'NONE';
@@ -890,8 +930,11 @@ const updateSale = async (req, res, next) => {
           payment_method = ?,
           payment_amount = ?,
           credit_amount = ?,
+          payment_type = ?,
           payment_status = ?,
           credit_status = ?,
+          status = ?,
+          sale_date = ?,
           notes = ?,
           customer_name = ?,
           customer_phone = ?,
@@ -908,9 +951,12 @@ const updateSale = async (req, res, next) => {
           payment_method = ?,
           payment_amount = ?,
           credit_amount = ?,
+          payment_type = ?,
           running_balance = ?,
           payment_status = ?,
           credit_status = ?,
+          status = ?,
+          sale_date = ?,
           notes = ?,
           customer_name = ?,
           customer_phone = ?,
@@ -923,34 +969,40 @@ const updateSale = async (req, res, next) => {
         ? [
             finalSubtotal,
             finalTotal,
-            parseFloat(tax) || 0,
-            parseFloat(discount) || 0,
+          finalTax,
+          finalDiscount,
             finalPaymentMethod,
             finalPaymentAmount,
             finalCreditAmount,
+            finalPaymentType,
             finalPaymentStatus,
             finalCreditStatus,
-            notes || sale.notes,
-            customerName || sale.customer_name,
-            customerPhone || sale.customer_phone,
-            customerInfo ? JSON.stringify(customerInfo) : sale.customer_info,
+            finalStatus,
+            finalSaleDate,
+            finalNotes,
+            finalCustomerName,
+            finalCustomerPhone,
+            finalCustomerInfo,
             id
           ]
         : [
             finalSubtotal,
             finalTotal,
-            parseFloat(tax) || 0,
-            parseFloat(discount) || 0,
+          finalTax,
+          finalDiscount,
             finalPaymentMethod,
             finalPaymentAmount,
             finalCreditAmount,
+            finalPaymentType,
             runningBalance,
             finalPaymentStatus,
             finalCreditStatus,
-            notes || sale.notes,
-            customerName || sale.customer_name,
-            customerPhone || sale.customer_phone,
-            customerInfo ? JSON.stringify(customerInfo) : sale.customer_info,
+            finalStatus,
+            finalSaleDate,
+            finalNotes,
+            finalCustomerName,
+            finalCustomerPhone,
+            finalCustomerInfo,
             id
           ];
 

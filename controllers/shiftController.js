@@ -457,7 +457,7 @@ const endShift = async (req, res, next) => {
     // ─── Closing summary: sales for this cashier during the session period ───
 
     // Sales header totals (product + clinic combined)
-    const [salesSummary] = await executeQuery(`
+    const salesSummaryRows = await executeQuery(`
       SELECT 
         COUNT(*) AS bill_count,
         COALESCE(SUM(s.total), 0) AS total_sales,
@@ -477,7 +477,7 @@ const endShift = async (req, res, next) => {
     `, [userId, startTime, endTime]);
 
     // Product / inventory line sales (non-clinic items)
-    const [productSales] = await executeQuery(`
+    const productSalesRows = await executeQuery(`
       SELECT COALESCE(SUM(si.total), 0) AS product_sales
       FROM sale_items si
       INNER JOIN sales s ON si.sale_id = s.id
@@ -489,7 +489,7 @@ const endShift = async (req, res, next) => {
     `, [userId, startTime, endTime]);
 
     // Clinic service line sales
-    const [clinicSales] = await executeQuery(`
+    const clinicSalesRows = await executeQuery(`
       SELECT COALESCE(SUM(si.total), 0) AS clinic_sales
       FROM sale_items si
       INNER JOIN sales s ON si.sale_id = s.id
@@ -500,15 +500,17 @@ const endShift = async (req, res, next) => {
         AND s.created_at BETWEEN ? AND ?
     `, [userId, startTime, endTime]);
 
-    const summary = salesSummary[0];
+    const summary = salesSummaryRows[0] || {};
+    const productSales = productSalesRows[0] || {};
+    const clinicSales = clinicSalesRows[0] || {};
     const closingSummary = {
       bill_count: Number(summary.bill_count) || 0,
       total_sales: Number(summary.total_sales) || 0,
       total_subtotal: Number(summary.total_subtotal) || 0,
       total_tax: Number(summary.total_tax) || 0,
       total_discount: Number(summary.total_discount) || 0,
-      product_sales: Number(productSales[0]?.product_sales) || 0,
-      clinic_sales: Number(clinicSales[0]?.clinic_sales) || 0,
+      product_sales: Number(productSales.product_sales) || 0,
+      clinic_sales: Number(clinicSales.clinic_sales) || 0,
       cash_sales: Number(summary.cash_sales) || 0,
       card_sales: Number(summary.card_sales) || 0,
       mobile_sales: Number(summary.mobile_sales) || 0,

@@ -64,6 +64,8 @@ const getCustomerLedger = async (req, res) => {
       endDate, 
       transactionType, 
       paymentMethod,
+      scopeType: queryScopeType,
+      scopeId: queryScopeId,
       limit: limitQuery = 1000,
       offset = 0,
       detailed = false
@@ -83,28 +85,18 @@ const getCustomerLedger = async (req, res) => {
     let whereConditions = [];
     let params = [];
 
-    // Role-based filtering - handle both branch_id and branchId for backward compatibility
-    const userBranchId = req.user.branch_id || req.user.branchId;
-    const userWarehouseId = req.user.warehouse_id || req.user.warehouseId;
-    
-    if (req.user.role === 'CASHIER' && userBranchId) {
-      // For cashiers, we need to match by branch name since sales store scope_id as string
-      // First get the branch name from the branch_id
-      const [branches] = await pool.execute('SELECT name FROM branches WHERE id = ?', [userBranchId]);
-      if (branches.length > 0) {
+    const { resolveActingScope } = require('../utils/resolveActingScope');
+    const actingScope = await resolveActingScope(req, {
+      scopeType: queryScopeType,
+      scopeId: queryScopeId,
+    });
+    const scopeWasRequested = queryScopeType || queryScopeId || req.simulatedScope?.scopeType;
+    if (actingScope.scopeType && actingScope.scopeName) {
       whereConditions.push('(s.scope_type = ? AND s.scope_id = ?)');
-        params.push('BRANCH', branches[0].name);
-      }
-    } else if (req.user.role === 'WAREHOUSE_KEEPER' && userWarehouseId) {
-      // For warehouse keepers, we need to match by warehouse name since sales store scope_id as string
-      // First get the warehouse name from the warehouse_id
-      const [warehouses] = await pool.execute('SELECT name FROM warehouses WHERE id = ?', [userWarehouseId]);
-      if (warehouses.length > 0) {
-      whereConditions.push('(s.scope_type = ? AND s.scope_id = ?)');
-        params.push('WAREHOUSE', warehouses[0].name);
-      }
+      params.push(actingScope.scopeType, actingScope.scopeName);
+    } else if (req.user.role !== 'ADMIN' || scopeWasRequested) {
+      whereConditions.push('1 = 0');
     }
-    // Admin can see all transactions (no scope restrictions)
 
     // Date filtering — use sale_date when set, else fall back to created_at
     if (startDate) {
@@ -677,6 +669,8 @@ const getAllCustomersWithSummaries = async (req, res) => {
           },
         },
       });
+    } else if (queryScopeType || queryScopeId || req.simulatedScope?.scopeType) {
+      baseWhereConditions.push('1 = 0');
     }
 
     // Search filtering
@@ -986,10 +980,11 @@ const getAllCustomersWithSummaries = async (req, res) => {
 const exportCustomerLedger = async (req, res) => {
   try {
     const { customerId } = req.params;
-    const { startDate, endDate, format = 'pdf', detailed = 'false' } = req.query;
+    const { startDate, endDate, scopeType, scopeId, format = 'pdf', detailed = 'false' } = req.query;
 
     // Get customer ledger data (same as getCustomerLedger but without pagination)
-    const ledgerData = await getCustomerLedgerData(customerId, req.user, { startDate, endDate, limit: 1000 });
+    const ledgerOptions = { startDate, endDate, scopeType, scopeId, limit: 1000 };
+    const ledgerData = await getCustomerLedgerData(customerId, req.user, ledgerOptions);
     const processedLedgerAsc = (
       ledgerRowsAlreadyNormalized(ledgerData)
         ? ledgerData
@@ -1005,7 +1000,7 @@ const processedLedgerDesc = [...processedLedgerAsc].sort(compareLedgerDesc);
     if (detailed === 'true') {
       
       // Use the FIXED function for detailed data
-      const detailedLedgerData = await getDetailedCustomerLedgerData(customerId, req.user, { startDate, endDate, limit: 1000 });
+      const detailedLedgerData = await getDetailedCustomerLedgerData(customerId, req.user, ledgerOptions);
       
       
       const normalizedTransactions = ledgerRowsAlreadyNormalized(detailedLedgerData)
@@ -1196,30 +1191,19 @@ const getCustomerSummary = async (customerId, user) => {
 
 // Helper function to get customer ledger data
 const getCustomerLedgerData = async (customerId, user, options = {}) => {
-  const { startDate, endDate, limit = 1000 } = options;
+  const { startDate, endDate, scopeType, scopeId, limit = 1000 } = options;
   
   // Build WHERE conditions (same logic as getCustomerLedger)
   let whereConditions = [];
   let params = [];
 
-  // Handle both branch_id and branchId for backward compatibility
-  const userBranchId = user.branch_id || user.branchId;
-  const userWarehouseId = user.warehouse_id || user.warehouseId;
-  
-  if (user.role === 'CASHIER' && userBranchId) {
-    // For cashiers, we need to match by branch name since sales store scope_id as string
-    const [branches] = await pool.execute('SELECT name FROM branches WHERE id = ?', [userBranchId]);
-    if (branches.length > 0) {
+  const { resolveActingScope } = require('../utils/resolveActingScope');
+  const actingScope = await resolveActingScope({ user }, { scopeType, scopeId });
+  if (actingScope.scopeType && actingScope.scopeName) {
     whereConditions.push('(s.scope_type = ? AND s.scope_id = ?)');
-      params.push('BRANCH', branches[0].name);
-    }
-  } else if (user.role === 'WAREHOUSE_KEEPER' && userWarehouseId) {
-    // For warehouse keepers, we need to match by warehouse name since sales store scope_id as string
-    const [warehouses] = await pool.execute('SELECT name FROM warehouses WHERE id = ?', [userWarehouseId]);
-    if (warehouses.length > 0) {
-    whereConditions.push('(s.scope_type = ? AND s.scope_id = ?)');
-      params.push('WAREHOUSE', warehouses[0].name);
-    }
+    params.push(actingScope.scopeType, actingScope.scopeName);
+  } else if (user.role !== 'ADMIN' || scopeType || scopeId) {
+    whereConditions.push('1 = 0');
   }
 
   whereConditions.push('(s.customer_name = ? OR s.customer_phone = ? OR JSON_EXTRACT(s.customer_info, "$.name") = ? OR JSON_EXTRACT(s.customer_info, "$.phone") = ?)');
@@ -1308,28 +1292,19 @@ const [transactions] = await pool.execute(`
 // Helper function to get detailed customer ledger data with items (FIXED VERSION)
 // Helper function to get detailed customer ledger data with items (FIXED VERSION)
 const getDetailedCustomerLedgerData = async (customerId, user, options = {}) => {
-  const { startDate, endDate, limit = 1000 } = options;
+  const { startDate, endDate, scopeType, scopeId, limit = 1000 } = options;
   
   // Build WHERE conditions (same logic as getCustomerLedger)
   let whereConditions = [];
   let params = [];
 
-  // Handle both branch_id and branchId for backward compatibility
-  const userBranchId = user.branch_id || user.branchId;
-  const userWarehouseId = user.warehouse_id || user.warehouseId;
-  
-  if (user.role === 'CASHIER' && userBranchId) {
-    const [branches] = await pool.execute('SELECT name FROM branches WHERE id = ?', [userBranchId]);
-    if (branches.length > 0) {
-      whereConditions.push('(s.scope_type = ? AND s.scope_id = ?)');
-      params.push('BRANCH', branches[0].name);
-    }
-  } else if (user.role === 'WAREHOUSE_KEEPER' && userWarehouseId) {
-    const [warehouses] = await pool.execute('SELECT name FROM warehouses WHERE id = ?', [userWarehouseId]);
-    if (warehouses.length > 0) {
-      whereConditions.push('(s.scope_type = ? AND s.scope_id = ?)');
-      params.push('WAREHOUSE', warehouses[0].name);
-    }
+  const { resolveActingScope } = require('../utils/resolveActingScope');
+  const actingScope = await resolveActingScope({ user }, { scopeType, scopeId });
+  if (actingScope.scopeType && actingScope.scopeName) {
+    whereConditions.push('(s.scope_type = ? AND s.scope_id = ?)');
+    params.push(actingScope.scopeType, actingScope.scopeName);
+  } else if (user.role !== 'ADMIN' || scopeType || scopeId) {
+    whereConditions.push('1 = 0');
   }
 
   whereConditions.push('(s.customer_name = ? OR s.customer_phone = ? OR JSON_EXTRACT(s.customer_info, "$.name") = ? OR JSON_EXTRACT(s.customer_info, "$.phone") = ?)');

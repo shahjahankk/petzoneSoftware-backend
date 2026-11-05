@@ -4,6 +4,7 @@ const User = require('../models/User');
 const Branch = require('../models/Branch');
 const Sale = require('../models/Sale');
 const { pool, sqliteDb, useSQLite, executeQuery } = require('../config/database');
+const { SOURCE_TIMEZONE, REPORT_TIMEZONE } = require('../utils/reportDate');
 
 // @desc    Get all shifts
 // @route   GET /api/shifts
@@ -15,8 +16,8 @@ const getShifts = async (req, res, next) => {
     let params = [];
     
     if (branchId) {
-      whereConditions.push('branch_id = ?');
-      params.push(branchId);
+      whereConditions.push("((s.scope_type = 'BRANCH' AND s.scope_id = ?) OR s.branch_id = ?)");
+      params.push(branchId, branchId);
     }
     
     if (isActive !== undefined) {
@@ -34,7 +35,7 @@ const getShifts = async (req, res, next) => {
         b.location as branch_location,
         creator.username as created_by_username
       FROM shifts s
-      LEFT JOIN branches b ON s.branch_id = b.id
+      LEFT JOIN branches b ON (s.scope_type = 'BRANCH' AND s.scope_id = b.id) OR s.branch_id = b.id
       LEFT JOIN users creator ON s.created_by = creator.id
       ${whereClause}
       ORDER BY s.created_at DESC
@@ -654,13 +655,10 @@ const getCurrentShift = async (req, res, next) => {
     let params = [];
 
     // Check for active shifts first, if none found, get any shifts
-    if (branchId) {
-      whereConditions.push('branch_id = ?');
-      params.push(branchId);
-    } else if (req.user.branchId) {
-      whereConditions.push('branch_id = ?');
-      params.push(req.user.branchId);
-    } else {
+    const scopedBranchId = branchId || req.user.branchId;
+    if (scopedBranchId) {
+      whereConditions.push("((s.scope_type = 'BRANCH' AND s.scope_id = ?) OR s.branch_id = ?)");
+      params.push(scopedBranchId, scopedBranchId);
     }
 
     // Try active shifts first
@@ -677,7 +675,7 @@ const getCurrentShift = async (req, res, next) => {
         b.code as branch_code,
         b.location as branch_location
       FROM shifts s
-      LEFT JOIN branches b ON s.branch_id = b.id
+      LEFT JOIN branches b ON (s.scope_type = 'BRANCH' AND s.scope_id = b.id) OR s.branch_id = b.id
       WHERE ${activeWhereClause}
       ORDER BY s.created_at DESC
       LIMIT 1
@@ -695,7 +693,7 @@ const getCurrentShift = async (req, res, next) => {
           b.code as branch_code,
           b.location as branch_location
         FROM shifts s
-        LEFT JOIN branches b ON s.branch_id = b.id
+        LEFT JOIN branches b ON (s.scope_type = 'BRANCH' AND s.scope_id = b.id) OR s.branch_id = b.id
         WHERE ${anyWhereClause}
         ORDER BY s.created_at DESC
         LIMIT 1
@@ -923,12 +921,12 @@ const getShiftSessionsReport = async (req, res, next) => {
     const params = [];
 
     if (dateFrom) {
-      where.push('ss.actual_start_time >= ?');
-      params.push(`${dateFrom} 00:00:00`);
+      where.push(`DATE(CONVERT_TZ(ss.actual_start_time, '${SOURCE_TIMEZONE}', '${REPORT_TIMEZONE}')) >= ?`);
+      params.push(dateFrom);
     }
     if (dateTo) {
-      where.push('ss.actual_start_time <= ?');
-      params.push(`${dateTo} 23:59:59`);
+      where.push(`DATE(CONVERT_TZ(ss.actual_start_time, '${SOURCE_TIMEZONE}', '${REPORT_TIMEZONE}')) <= ?`);
+      params.push(dateTo);
     }
     if (effectiveUserId) {
       where.push('ss.user_id = ?');
@@ -957,8 +955,8 @@ const getShiftSessionsReport = async (req, res, next) => {
         ss.shift_id,
         ss.user_id,
         ss.status,
-        CAST(ss.actual_start_time AS CHAR) AS actual_start_time,
-        CAST(ss.actual_end_time AS CHAR) AS actual_end_time,
+        DATE_FORMAT(CONVERT_TZ(ss.actual_start_time, '${SOURCE_TIMEZONE}', '${REPORT_TIMEZONE}'), '%Y-%m-%d %H:%i:%s') AS actual_start_time,
+        DATE_FORMAT(CONVERT_TZ(ss.actual_end_time, '${SOURCE_TIMEZONE}', '${REPORT_TIMEZONE}'), '%Y-%m-%d %H:%i:%s') AS actual_end_time,
         ss.initial_cash,
         ss.final_cash,
         s.name AS shift_name,
@@ -989,6 +987,7 @@ const getShiftSessionsReport = async (req, res, next) => {
           sessions: 0,
           initial_cash: 0,
           cash_sales: 0,
+          cash_refunds: 0,
           cash_expenses: 0,
           total_sales: 0,
           final_cash: 0,
@@ -1006,12 +1005,18 @@ const getShiftSessionsReport = async (req, res, next) => {
         COUNT(s.id) AS bill_count,
         COALESCE(SUM(s.total), 0) AS total_sales,
         COALESCE(SUM(CASE WHEN s.payment_method = 'CASH' THEN s.total ELSE 0 END), 0) AS cash_sales,
+        COALESCE(SUM(CASE WHEN s.payment_method IN ('REFUND', 'CASH_REFUND')
+                            OR s.payment_type IN ('REFUND', 'CASH_REFUND')
+                          THEN s.total ELSE 0 END), 0) AS cash_refunds,
         COALESCE(SUM(CASE WHEN s.payment_method = 'CARD' THEN s.total ELSE 0 END), 0) AS card_sales,
         COALESCE(SUM(CASE WHEN s.payment_method = 'MOBILE_PAYMENT' THEN s.total ELSE 0 END), 0) AS mobile_sales,
         COALESCE(SUM(CASE WHEN s.payment_method = 'FULLY_CREDIT' THEN s.total ELSE 0 END), 0) AS credit_sales
       FROM shift_sessions ss
+      INNER JOIN shifts sh ON sh.id = ss.shift_id
       LEFT JOIN sales s
         ON s.user_id = ss.user_id
+       AND s.scope_type = sh.scope_type
+       AND s.scope_id = sh.scope_id
        AND s.status = 'COMPLETED'
        AND s.deleted_at IS NULL
        AND s.created_at >= ss.actual_start_time
@@ -1053,11 +1058,12 @@ const getShiftSessionsReport = async (req, res, next) => {
       const expenseAgg = expensesBySession[String(session.id)] || {};
       const initialCash = Number(session.initial_cash) || 0;
       const cashSales = Number(agg.cash_sales) || 0;
+      const cashRefunds = Number(agg.cash_refunds) || 0;
       const cashExpenses = Number(expenseAgg.cash_expenses) || 0;
       const finalCash = session.final_cash === null || session.final_cash === undefined
         ? null
         : Number(session.final_cash);
-      const expectedCash = initialCash + cashSales - cashExpenses;
+      const expectedCash = initialCash + cashSales + cashRefunds - cashExpenses;
 
       return {
         ...session,
@@ -1066,6 +1072,7 @@ const getShiftSessionsReport = async (req, res, next) => {
         bill_count: Number(agg.bill_count) || 0,
         total_sales: Number(agg.total_sales) || 0,
         cash_sales: cashSales,
+        cash_refunds: cashRefunds,
         cash_expenses: cashExpenses,
         card_sales: Number(agg.card_sales) || 0,
         mobile_sales: Number(agg.mobile_sales) || 0,
@@ -1079,6 +1086,7 @@ const getShiftSessionsReport = async (req, res, next) => {
       acc.sessions += 1;
       acc.initial_cash += row.initial_cash;
       acc.cash_sales += row.cash_sales;
+      acc.cash_refunds += row.cash_refunds;
       acc.cash_expenses += row.cash_expenses;
       acc.total_sales += row.total_sales;
       acc.final_cash += row.final_cash || 0;
@@ -1089,6 +1097,7 @@ const getShiftSessionsReport = async (req, res, next) => {
       sessions: 0,
       initial_cash: 0,
       cash_sales: 0,
+      cash_refunds: 0,
       cash_expenses: 0,
       total_sales: 0,
       final_cash: 0,

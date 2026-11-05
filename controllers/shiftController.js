@@ -1028,8 +1028,8 @@ const getShiftSessionsReport = async (req, res, next) => {
        )
        AND s.status = 'COMPLETED'
        AND s.deleted_at IS NULL
-       AND s.created_at >= ss.actual_start_time
-       AND s.created_at <= COALESCE(ss.actual_end_time, NOW())
+        AND s.created_at >= ss.actual_start_time + INTERVAL (5 - TIMESTAMPDIFF(HOUR, UTC_TIMESTAMP(), NOW())) HOUR
+        AND s.created_at <= COALESCE(ss.actual_end_time + INTERVAL (5 - TIMESTAMPDIFF(HOUR, UTC_TIMESTAMP(), NOW())) HOUR, UTC_TIMESTAMP() + INTERVAL 5 HOUR)
       WHERE ss.id IN (${placeholders})
       GROUP BY ss.id
     `, ids);
@@ -1050,14 +1050,14 @@ const getShiftSessionsReport = async (req, res, next) => {
              ELSE NULL
            END, ''
          )
-       )
+        )
        AND fv.user_id = ss.user_id
        AND fv.type = 'EXPENSE'
        AND fv.payment_method = 'CASH'
        AND fv.status = 'APPROVED'
        AND fv.deleted_at IS NULL
-       AND fv.created_at >= ss.actual_start_time
-       AND fv.created_at <= COALESCE(ss.actual_end_time, NOW())
+       AND fv.created_at >= ss.actual_start_time + INTERVAL (5 - TIMESTAMPDIFF(HOUR, UTC_TIMESTAMP(), NOW())) HOUR
+       AND fv.created_at <= COALESCE(ss.actual_end_time + INTERVAL (5 - TIMESTAMPDIFF(HOUR, UTC_TIMESTAMP(), NOW())) HOUR, UTC_TIMESTAMP() + INTERVAL 5 HOUR)
       WHERE ss.id IN (${placeholders})
       GROUP BY ss.id
     `, ids);

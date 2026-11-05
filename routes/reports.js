@@ -85,7 +85,12 @@ function proxyToWarehouse(req, res) {
 // Dashboard counters are cheap OLTP counts, not analytics reports.
 router.get('/summary', reportsController.getReportsSummary);
 
+// Shift cash report served directly from POS backend (OLTP).
+const shiftController = require('../controllers/shiftController');
+const { requireCashier } = require('../middleware/rbac');
+router.get('/shifts', requireCashier, shiftController.getShiftSessionsReport);
+
 // Analytics reports are served exclusively by the warehouse service.
-router.use(['/sales', '/shifts', '/clinic', '/inventory', '/ledger', '/financial'], proxyToWarehouse);
+router.use(['/sales', '/clinic', '/inventory', '/ledger', '/financial'], proxyToWarehouse);
 
 module.exports = router;

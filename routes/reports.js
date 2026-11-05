@@ -86,6 +86,6 @@ function proxyToWarehouse(req, res) {
 router.get('/summary', reportsController.getReportsSummary);
 
 // Analytics reports are served exclusively by the warehouse service.
-router.use(['/sales', '/clinic', '/inventory', '/ledger', '/financial'], proxyToWarehouse);
+router.use(['/sales', '/shifts', '/clinic', '/inventory', '/ledger', '/financial'], proxyToWarehouse);
 
 module.exports = router;

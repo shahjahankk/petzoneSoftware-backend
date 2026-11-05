@@ -1028,8 +1028,7 @@ const getShiftSessionsReport = async (req, res, next) => {
        )
        AND s.status = 'COMPLETED'
        AND s.deleted_at IS NULL
-       AND s.created_at >= ss.actual_start_time
-       AND s.created_at <= COALESCE(ss.actual_end_time, NOW())
+       AND DATE(s.created_at) = DATE(ss.actual_start_time)
       WHERE ss.id IN (${placeholders})
       GROUP BY ss.id
     `, ids);
@@ -1056,8 +1055,7 @@ const getShiftSessionsReport = async (req, res, next) => {
        AND fv.payment_method = 'CASH'
        AND fv.status = 'APPROVED'
        AND fv.deleted_at IS NULL
-       AND fv.created_at >= ss.actual_start_time
-       AND fv.created_at <= COALESCE(ss.actual_end_time, NOW())
+       AND DATE(fv.created_at) = DATE(ss.actual_start_time)
       WHERE ss.id IN (${placeholders})
       GROUP BY ss.id
     `, ids);

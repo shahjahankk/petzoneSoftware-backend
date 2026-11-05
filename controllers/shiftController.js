@@ -1016,7 +1016,16 @@ const getShiftSessionsReport = async (req, res, next) => {
       LEFT JOIN sales s
         ON s.user_id = ss.user_id
        AND s.scope_type = sh.scope_type
-       AND s.scope_id = sh.scope_id
+       AND (
+         s.scope_id = sh.scope_id
+         OR s.scope_id = COALESCE(
+           CASE sh.scope_type
+             WHEN 'BRANCH' THEN (SELECT b.name FROM branches b WHERE b.id = sh.scope_id LIMIT 1)
+             WHEN 'WAREHOUSE' THEN (SELECT w.name FROM warehouses w WHERE w.id = sh.scope_id LIMIT 1)
+             ELSE NULL
+           END, ''
+         )
+       )
        AND s.status = 'COMPLETED'
        AND s.deleted_at IS NULL
        AND s.created_at >= ss.actual_start_time
@@ -1032,7 +1041,16 @@ const getShiftSessionsReport = async (req, res, next) => {
       JOIN shifts s ON s.id = ss.shift_id
       LEFT JOIN financial_vouchers fv
         ON fv.scope_type = s.scope_type
-       AND fv.scope_id = s.scope_id
+       AND (
+         fv.scope_id = s.scope_id
+         OR fv.scope_id = COALESCE(
+           CASE s.scope_type
+             WHEN 'BRANCH' THEN (SELECT b.name FROM branches b WHERE b.id = s.scope_id LIMIT 1)
+             WHEN 'WAREHOUSE' THEN (SELECT w.name FROM warehouses w WHERE w.id = s.scope_id LIMIT 1)
+             ELSE NULL
+           END, ''
+         )
+       )
        AND fv.user_id = ss.user_id
        AND fv.type = 'EXPENSE'
        AND fv.payment_method = 'CASH'

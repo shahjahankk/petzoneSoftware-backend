@@ -896,6 +896,7 @@ const getShiftSessionsReport = async (req, res, next) => {
       sessions: 0,
       initial_cash: 0,
       cash_sales: 0,
+      cash_expenses: 0,
       total_sales: 0,
       final_cash: 0,
       expected_cash: 0,
@@ -956,8 +957,8 @@ const getShiftSessionsReport = async (req, res, next) => {
         ss.shift_id,
         ss.user_id,
         ss.status,
-        CONVERT_TZ(ss.actual_start_time, 'SYSTEM', '+00:00') AS actual_start_time,
-        CONVERT_TZ(ss.actual_end_time, 'SYSTEM', '+00:00') AS actual_end_time,
+        CAST(ss.actual_start_time AS CHAR) AS actual_start_time,
+        CAST(ss.actual_end_time AS CHAR) AS actual_end_time,
         ss.initial_cash,
         ss.final_cash,
         s.name AS shift_name,
@@ -988,6 +989,7 @@ const getShiftSessionsReport = async (req, res, next) => {
           sessions: 0,
           initial_cash: 0,
           cash_sales: 0,
+          cash_expenses: 0,
           total_sales: 0,
           final_cash: 0,
           expected_cash: 0,
@@ -1018,19 +1020,44 @@ const getShiftSessionsReport = async (req, res, next) => {
       GROUP BY ss.id
     `, ids);
 
+    const expenseRows = await executeQuery(`
+      SELECT ss.id AS session_id,
+        COALESCE(SUM(fv.amount), 0) AS cash_expenses
+      FROM shift_sessions ss
+      JOIN shifts s ON s.id = ss.shift_id
+      LEFT JOIN financial_vouchers fv
+        ON fv.scope_type = s.scope_type
+       AND fv.scope_id = s.scope_id
+       AND fv.user_id = ss.user_id
+       AND fv.type = 'EXPENSE'
+       AND fv.payment_method = 'CASH'
+       AND fv.status = 'APPROVED'
+       AND fv.deleted_at IS NULL
+       AND fv.created_at >= ss.actual_start_time
+       AND fv.created_at <= COALESCE(ss.actual_end_time, NOW())
+      WHERE ss.id IN (${placeholders})
+      GROUP BY ss.id
+    `, ids);
+
     const salesBySession = {};
     salesRows.forEach((row) => {
       salesBySession[String(row.session_id)] = row;
     });
+    const expensesBySession = {};
+    expenseRows.forEach((row) => {
+      expensesBySession[String(row.session_id)] = row;
+    });
 
     const data = sessions.map((session) => {
       const agg = salesBySession[String(session.id)] || {};
+      const expenseAgg = expensesBySession[String(session.id)] || {};
       const initialCash = Number(session.initial_cash) || 0;
       const cashSales = Number(agg.cash_sales) || 0;
+      const cashExpenses = Number(expenseAgg.cash_expenses) || 0;
       const finalCash = session.final_cash === null || session.final_cash === undefined
         ? null
         : Number(session.final_cash);
-      const expectedCash = initialCash + cashSales;
+      const expectedCash = initialCash + cashSales - cashExpenses;
 
       return {
         ...session,
@@ -1039,6 +1066,7 @@ const getShiftSessionsReport = async (req, res, next) => {
         bill_count: Number(agg.bill_count) || 0,
         total_sales: Number(agg.total_sales) || 0,
         cash_sales: cashSales,
+        cash_expenses: cashExpenses,
         card_sales: Number(agg.card_sales) || 0,
         mobile_sales: Number(agg.mobile_sales) || 0,
         credit_sales: Number(agg.credit_sales) || 0,
@@ -1051,6 +1079,7 @@ const getShiftSessionsReport = async (req, res, next) => {
       acc.sessions += 1;
       acc.initial_cash += row.initial_cash;
       acc.cash_sales += row.cash_sales;
+      acc.cash_expenses += row.cash_expenses;
       acc.total_sales += row.total_sales;
       acc.final_cash += row.final_cash || 0;
       acc.expected_cash += row.expected_cash;
@@ -1060,6 +1089,7 @@ const getShiftSessionsReport = async (req, res, next) => {
       sessions: 0,
       initial_cash: 0,
       cash_sales: 0,
+      cash_expenses: 0,
       total_sales: 0,
       final_cash: 0,
       expected_cash: 0,

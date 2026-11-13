@@ -3,6 +3,16 @@ const { body, validationResult } = require('express-validator');
 // ─────────────────────────────────────────────────────────────
 // SHARED HELPER — import in any route that needs validation
 // ─────────────────────────────────────────────────────────────
+const isHttpUrl = (value) => {
+  if (!value || String(value).trim() === '') return true;
+  try {
+    const parsed = new URL(String(value).trim());
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+};
+
 const handleValidation = (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -281,6 +291,39 @@ const branchValidation = [
     .optional()
     .isBoolean()
     .withMessage('Allow cashier sales delete must be a boolean'),
+
+  body('qms.orgSlug')
+    .optional({ nullable: true, checkFalsy: true })
+    .trim()
+    .isLength({ max: 100 })
+    .withMessage('Queue Management org slug must not exceed 100 characters'),
+
+  body('qms.branchSlug')
+    .optional({ nullable: true, checkFalsy: true })
+    .trim()
+    .isLength({ max: 100 })
+    .withMessage('Queue Management branch slug must not exceed 100 characters'),
+
+  body('qms.kioskUrl')
+    .optional({ nullable: true, checkFalsy: true })
+    .trim()
+    .isLength({ max: 500 })
+    .withMessage('Kiosk URL must not exceed 500 characters')
+    .custom(isHttpUrl)
+    .withMessage('Kiosk URL must be a valid http(s) URL'),
+
+  body('qms.opdUrl')
+    .optional({ nullable: true, checkFalsy: true })
+    .trim()
+    .isLength({ max: 500 })
+    .withMessage('OPD URL must not exceed 500 characters')
+    .custom(isHttpUrl)
+    .withMessage('OPD URL must be a valid http(s) URL'),
+
+  body('qms.opdCounterCount')
+    .optional({ nullable: true, checkFalsy: true })
+    .isInt({ min: 1, max: 50 })
+    .withMessage('OPD counters must be between 1 and 50'),
 ];
 
 // Shared chains — POST requires core fields; PUT allows partial updates (all optional when absent).

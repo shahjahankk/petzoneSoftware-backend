@@ -11,6 +11,67 @@ const { ledgerScopedQuantitySubquery } = require('../services/inventoryLedgerSer
 const { remapBranchScopeName } = require('../services/branchScopeRemapService');
 const { withBrandFields, normalizeBrand, parseSettings } = require('../utils/brandLogo');
 
+function trimOrNull(value) {
+  if (value === undefined || value === null) return null;
+  const text = String(value).trim();
+  return text === '' ? null : text;
+}
+
+function normalizeQmsConfig(qms) {
+  if (!qms || typeof qms !== 'object') return null;
+  const normalized = {
+    orgSlug: trimOrNull(qms.orgSlug),
+    branchSlug: trimOrNull(qms.branchSlug),
+    kioskUrl: trimOrNull(qms.kioskUrl),
+    opdUrl: trimOrNull(qms.opdUrl),
+    opdCounterCount:
+      qms.opdCounterCount !== undefined && qms.opdCounterCount !== null && qms.opdCounterCount !== ''
+        ? Number(qms.opdCounterCount)
+        : null,
+  };
+  if (qms.queueToken) normalized.queueToken = trimOrNull(qms.queueToken);
+  const hasAnyValue = Object.values(normalized).some((value) => value !== null);
+  return hasAnyValue ? normalized : null;
+}
+
+/**
+ * Point the matching QMS branch (same database) at this POS branch so
+ * /queue/resolve?posBranchId= keeps working for kiosk/OPD/display.
+ */
+async function syncQmsBranchLink(branchId, qms) {
+  if (!branchId) return;
+  try {
+    if (!qms?.orgSlug || !qms?.branchSlug) {
+      await executeQuery('UPDATE qms_branches SET pos_branch_id = NULL WHERE pos_branch_id = ?', [
+        branchId,
+      ]);
+      return;
+    }
+
+    const rows = await executeQuery(
+      `SELECT b.id
+       FROM qms_branches b
+       JOIN qms_organizations o ON o.id = b.org_id
+       WHERE o.slug = ? AND b.slug = ?
+       LIMIT 1`,
+      [qms.orgSlug, qms.branchSlug]
+    );
+    if (!rows.length) return;
+
+    const qmsBranchId = rows[0].id;
+    await executeQuery(
+      'UPDATE qms_branches SET pos_branch_id = NULL WHERE pos_branch_id = ? AND id <> ?',
+      [branchId, qmsBranchId]
+    );
+    await executeQuery('UPDATE qms_branches SET pos_branch_id = ? WHERE id = ?', [
+      branchId,
+      qmsBranchId,
+    ]);
+  } catch (err) {
+    console.warn('QMS branch link sync skipped:', err.message);
+  }
+}
+
 // @desc    Get all branches
 // @route   GET /api/branches
 // @access  Private (Admin, Warehouse Keeper)
@@ -155,7 +216,8 @@ const createBranch = async (req, res, next) => {
       linkedWarehouseId,
       status,
       settings,
-      brand
+      brand,
+      qms
     } = req.body;
 
     // Check if branch code already exists
@@ -182,6 +244,11 @@ const createBranch = async (req, res, next) => {
       brand: resolvedBrand,
     };
 
+    const normalizedQms = normalizeQmsConfig(qms);
+    if (normalizedQms) {
+      mergedSettings.qms = normalizedQms;
+    }
+
     const branchData = {
       name,
       code,
@@ -198,6 +265,7 @@ const createBranch = async (req, res, next) => {
     };
 
     const branch = await Branch.create(branchData);
+    await syncQmsBranchLink(branch.id, mergedSettings.qms);
     const brandFields = withBrandFields(branch);
 
     res.status(201).json({
@@ -292,8 +360,16 @@ const updateBranch = async (req, res, next) => {
       updatedBy: req.user.id,
     };
 
-    if (incomingSettings || body.brand !== undefined) {
+    if (incomingSettings || body.brand !== undefined || body.qms) {
       const merged = { ...existingSettings, ...(incomingSettings || {}) };
+      if (body.qms) {
+        const normalizedQms = normalizeQmsConfig(body.qms);
+        if (normalizedQms) {
+          merged.qms = normalizedQms;
+        } else {
+          delete merged.qms;
+        }
+      }
       if (body.brand !== undefined || merged.brand !== undefined) {
         merged.brand = normalizeBrand(body.brand !== undefined ? body.brand : merged.brand);
       }
@@ -364,6 +440,9 @@ const updateBranch = async (req, res, next) => {
     } else {
       updatedBranch = await Branch.update(parseInt(id, 10), updateData);
     }
+
+    const updatedSettings = parseSettings(updatedBranch?.settings);
+    await syncQmsBranchLink(parseInt(id, 10), updatedSettings.qms);
 
     const brandFields = withBrandFields(updatedBranch || {});
 

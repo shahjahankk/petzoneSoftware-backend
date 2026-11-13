@@ -7,8 +7,84 @@ const http = require('http')
 const https = require('https')
 const { URL } = require('url')
 const express = require('express')
+const Branch = require('../models/Branch')
+const { executeQuery } = require('../config/database')
 
 const router = express.Router()
+
+function resolvePosBranchId(user, req) {
+  if (user?.role === 'CASHIER' && user.branchId) return user.branchId
+  const simulated = req.headers['x-simulate-scope-type']
+  const simulatedId = req.headers['x-simulate-scope-id']
+  if (simulated === 'BRANCH' && simulatedId) return parseInt(simulatedId, 10)
+  const requested = req.query?.posBranchId || req.body?.posBranchId
+  if (requested) return parseInt(requested, 10)
+  return user?.branchId || null
+}
+
+function appendUnlockParam(urlString, token) {
+  try {
+    const url = new URL(urlString)
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null
+    if (token) url.searchParams.set('posUnlock', token)
+    return url.toString()
+  } catch {
+    return null
+  }
+}
+
+async function findQmsBranch({ posBranchId, orgSlug, branchSlug }) {
+  try {
+    if (orgSlug && branchSlug) {
+      const rows = await executeQuery(
+        `SELECT b.id, b.name, b.slug, o.slug AS org_slug
+         FROM qms_branches b
+         JOIN qms_organizations o ON o.id = b.org_id
+         WHERE o.slug = ? AND b.slug = ?
+         LIMIT 1`,
+        [orgSlug, branchSlug]
+      )
+      if (rows.length) return rows[0]
+    }
+    if (posBranchId) {
+      const rows = await executeQuery(
+        `SELECT b.id, b.name, b.slug, o.slug AS org_slug
+         FROM qms_branches b
+         JOIN qms_organizations o ON o.id = b.org_id
+         WHERE b.pos_branch_id = ?
+         LIMIT 1`,
+        [posBranchId]
+      )
+      if (rows.length) return rows[0]
+    }
+  } catch {
+    return null
+  }
+  return null
+}
+
+async function loadBranchQmsConfig(posBranchId) {
+  if (!posBranchId) return null
+  const branch = await Branch.findById(posBranchId)
+  if (!branch) return null
+  const qms = branch.settings?.qms && typeof branch.settings.qms === 'object'
+    ? branch.settings.qms
+    : {}
+  const qmsBranch = await findQmsBranch({
+    posBranchId,
+    orgSlug: qms.orgSlug,
+    branchSlug: qms.branchSlug,
+  })
+  return {
+    branchName: branch.name,
+    qmsBranchId: qmsBranch?.id || null,
+    orgSlug: qms.orgSlug || qmsBranch?.org_slug || null,
+    branchSlug: qms.branchSlug || qmsBranch?.slug || null,
+    kioskUrl: qms.kioskUrl || null,
+    opdUrl: qms.opdUrl || null,
+    opdCounterCount: qms.opdCounterCount ?? null,
+  }
+}
 
 function postJson(urlString, headers, bodyObj) {
   return new Promise((resolve, reject) => {
@@ -48,6 +124,29 @@ function postJson(urlString, headers, bodyObj) {
     req.end()
   })
 }
+
+/**
+ * GET /api/qms/branch-config
+ * Returns the queue config stored on the logged-in (or simulated) POS branch.
+ */
+router.get('/branch-config', async (req, res) => {
+  try {
+    const posBranchId = resolvePosBranchId(req.user, req)
+    if (!posBranchId) {
+      return res.status(404).json({ success: false, message: 'No POS branch selected' })
+    }
+    const config = await loadBranchQmsConfig(posBranchId)
+    if (!config) {
+      return res.status(404).json({ success: false, message: 'Branch not found' })
+    }
+    return res.json({ success: true, data: { posBranchId, ...config } })
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      message: err.message || 'Failed to load branch queue config',
+    })
+  }
+})
 
 router.post('/sso', async (req, res) => {
   try {
@@ -131,7 +230,8 @@ router.post('/sso', async (req, res) => {
 /**
  * Mint short-lived unlock for kiosk/OPD screen lock (branch PIN bypass from POS).
  * POST /api/qms/screen-sso
- * Body: { screen: 'kiosk'|'counter', orgSlug, branchSlug }
+ * Body: { screen: 'kiosk'|'counter', posBranchId?, orgSlug?, branchSlug? }
+ * Branch config (settings.qms) supplies slugs + custom kiosk/OPD URLs.
  */
 router.post('/screen-sso', async (req, res) => {
   try {
@@ -144,8 +244,10 @@ router.post('/screen-sso', async (req, res) => {
     }
 
     const screen = String(req.body?.screen || '').toLowerCase()
-    const orgSlug = String(req.body?.orgSlug || '').trim()
-    const branchSlug = String(req.body?.branchSlug || '').trim()
+    const posBranchId = resolvePosBranchId(req.user, req)
+    const branchConfig = await loadBranchQmsConfig(posBranchId).catch(() => null)
+    const orgSlug = String(branchConfig?.orgSlug || req.body?.orgSlug || '').trim()
+    const branchSlug = String(branchConfig?.branchSlug || req.body?.branchSlug || '').trim()
     if ((screen !== 'kiosk' && screen !== 'counter') || !orgSlug || !branchSlug) {
       return res.status(400).json({
         success: false,
@@ -175,9 +277,14 @@ router.post('/screen-sso', async (req, res) => {
       })
     }
 
+    const customUrl = screen === 'kiosk' ? branchConfig?.kioskUrl : branchConfig?.opdUrl
+    const unlockUrl = customUrl
+      ? (appendUnlockParam(customUrl, data.unlockToken) || customUrl)
+      : data.unlockUrl
+
     return res.json({
       success: true,
-      unlockUrl: data.unlockUrl,
+      unlockUrl,
       unlockToken: data.unlockToken,
       expiresAt: data.expiresAt,
     })

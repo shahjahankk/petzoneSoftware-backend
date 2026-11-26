@@ -126,7 +126,12 @@ const searchSales = async (req, res, next) => {
       });
     }
 
-    let whereConditions = [];
+    let whereConditions = [
+      's.deleted_at IS NULL',
+      "(s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND'))",
+      "(s.payment_method IS NULL OR s.payment_method NOT IN ('REFUND'))",
+      "s.invoice_no NOT LIKE 'RET-%'"
+    ];
     let params = [];
 
     // Search by invoice number or sale ID

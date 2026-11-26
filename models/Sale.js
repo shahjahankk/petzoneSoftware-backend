@@ -51,7 +51,16 @@ class Sale {
     this.retailerId = data.retailer_id;
     this.customerName = data.customer_name;
     this.customerPhone = data.customer_phone;
-    this.customerInfo = data.customer_info ? JSON.parse(data.customer_info) : null;
+    this.customerInfo = null;
+    if (data.customer_info) {
+      try {
+        this.customerInfo = typeof data.customer_info === 'object'
+          ? data.customer_info
+          : JSON.parse(data.customer_info);
+      } catch (parseError) {
+        this.customerInfo = null;
+      }
+    }
     this.notes = data.notes;
     this.status = data.status;
     this.saleDate = data.sale_date || null;
@@ -61,7 +70,7 @@ class Sale {
   }
 
   // Static method to create a new sale with items
-  static async create(saleData) {
+  static async create(saleData, externalConn = null) {
     const {
       invoiceNo, scopeType, scopeId, userId, shiftId, items,
       subtotal, tax, discount, total, paymentMethod, paymentType, paymentStatus,
@@ -71,10 +80,11 @@ class Sale {
     } = saleData;
     
     
-    const connection = await pool.getConnection();
+    const ownsConnection = !externalConn;
+    const connection = externalConn || await pool.getConnection();
     
     try {
-      await connection.beginTransaction();
+      if (ownsConnection) await connection.beginTransaction();
 
       const migrationDoneInsert = await isLedgerMigrationComplete(connection);
       const persistOldBal = migrationDoneInsert ? 0 : (oldBalance || 0);
@@ -221,21 +231,22 @@ class Sale {
         connection
       );
 
-      await connection.commit();
+      if (ownsConnection) await connection.commit();
 
-      return await Sale.findById(saleId);
+      return await Sale.findById(saleId, connection);
       
     } catch (error) {
-      await connection.rollback();
+      if (ownsConnection) await connection.rollback();
       throw error;
     } finally {
-      connection.release();
+      if (ownsConnection) connection.release();
     }
   }
 
   // Static method to find sale by ID
-  static async findById(id) {
-    const [rows] = await pool.execute(
+  static async findById(id, connection = null) {
+    const queryConnection = connection || pool;
+    const [rows] = await queryConnection.execute(
       'SELECT * FROM sales WHERE id = ?',
       [id]
     );
@@ -245,7 +256,7 @@ class Sale {
     const sale = new Sale(rows[0]);
     
     // Get sale items
-    const [itemRows] = await pool.execute(
+    const [itemRows] = await queryConnection.execute(
       'SELECT * FROM sale_items WHERE sale_id = ?',
       [id]
     );
@@ -489,6 +500,13 @@ class Sale {
       params.push(`%${conditions.invoiceNo}%`);
     }
 
+    if (conditions.excludeRefunds) {
+      query += ` AND deleted_at IS NULL
+        AND (payment_type IS NULL OR payment_type NOT IN ('REFUND'))
+        AND (payment_method IS NULL OR payment_method NOT IN ('REFUND'))
+        AND invoice_no NOT LIKE 'RET-%'`;
+    }
+
     // Date range filtering
     if (conditions.createdAt) {
       if (conditions.createdAt.$gte) {
@@ -583,6 +601,13 @@ class Sale {
     if (conditions.invoiceNo) {
       query += ' AND invoice_no LIKE ?';
       params.push(`%${conditions.invoiceNo}%`);
+    }
+
+    if (conditions.excludeRefunds) {
+      query += ` AND deleted_at IS NULL
+        AND (payment_type IS NULL OR payment_type NOT IN ('REFUND'))
+        AND (payment_method IS NULL OR payment_method NOT IN ('REFUND'))
+        AND invoice_no NOT LIKE 'RET-%'`;
     }
 
     // Date range filtering

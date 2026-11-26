@@ -18,7 +18,8 @@ function resolveNormalizedType(s) {
   if (pt === 'CREDIT_REFUND_SETTLEMENT') return 'CREDIT_REFUND_SETTLEMENT';
   if (pt === 'OUTSTANDING_SETTLEMENT') return 'SETTLEMENT';
   if (pt === 'BILTY_CHARGE') return 'BILTY';
-  if (pm === 'REFUND' && pt === 'REFUND') return 'RETURN';
+  if (pt === 'REFUND') return 'RETURN';
+  if (pt === 'EXCHANGE' || pm === 'EXCHANGE') return 'EXCHANGE';
   return 'SALE';
 }
 
@@ -63,12 +64,12 @@ function mapJoinedRowToLedgerShape(row) {
     normalizedType === 'CREDIT_REFUND_SETTLEMENT'
   ) {
     currentBillAmount = 0;
-  } else if (
-    normalizedType === 'RETURN' ||
-    (paymentMethod === 'REFUND' && paymentType === 'REFUND')
-  ) {
+  } else if (normalizedType === 'RETURN' || paymentType === 'REFUND') {
     // Returns are stored as negative totals on sales; display positive refund amount.
     currentBillAmount = Math.abs(amountRaw) || Math.abs(parseFloat(s.total) || 0);
+    actualPayment = 0;
+  } else if (normalizedType === 'EXCHANGE') {
+    currentBillAmount = debit;
     actualPayment = 0;
   } else {
     if (paymentMethod === 'FULLY_CREDIT' && paymentType !== 'OUTSTANDING_SETTLEMENT') {
@@ -107,6 +108,13 @@ function mapJoinedRowToLedgerShape(row) {
     running_balance: cumBalance,
     balance: cumBalance,
     postedAt: row.ledger_posted_at ?? row.created_at ?? null,
+    return_id: row.return_id ?? null,
+    return_type: row.return_type || 'REFUND',
+    refund_method: row.refund_method || null,
+    replacement_sale_id: row.replacement_sale_id ?? null,
+    replacement_total: row.replacement_total != null ? parseFloat(row.replacement_total) : null,
+    price_difference: row.price_difference != null ? parseFloat(row.price_difference) : null,
+    exchange_group_key: row.exchange_group_key || null,
   };
 }
 
@@ -147,16 +155,28 @@ function buildTransactionSelectSql() {
       WHEN s.payment_type = 'OUTSTANDING_SETTLEMENT' THEN 'SETTLEMENT'
       WHEN s.payment_type = 'CREDIT_REFUND_SETTLEMENT' THEN 'CREDIT_REFUND_SETTLEMENT'
       WHEN s.payment_type = 'BILTY_CHARGE' THEN 'BILTY'
-      WHEN s.payment_method = 'REFUND' AND s.payment_type = 'REFUND' THEN 'RETURN'
+      WHEN s.payment_type = 'REFUND' THEN 'RETURN'
+      WHEN s.payment_type = 'EXCHANGE' OR s.payment_method = 'EXCHANGE' THEN 'EXCHANGE'
       ELSE 'SALE'
     END AS transaction_type,
     s.payment_amount AS paid_amount,
     s.credit_amount AS credit_amount,
     s.subtotal AS amount,
-    sr.id AS return_id,
-    sr.reason AS return_reason,
+    COALESCE(sr.id, srex.id) AS return_id,
+    COALESCE(sr.reason, srex.reason) AS return_reason,
+    COALESCE(sr.type, srex.type, 'REFUND') AS return_type,
+    COALESCE(sr.refund_method, srex.refund_method) AS refund_method,
+    COALESCE(sr.replacement_sale_id, srex.replacement_sale_id) AS replacement_sale_id,
+    COALESCE(sr.replacement_total, srex.replacement_total) AS replacement_total,
+    COALESCE(sr.price_difference, srex.price_difference) AS price_difference,
     CASE
-      WHEN s.payment_method = 'REFUND' THEN ABS(s.total)
+      WHEN COALESCE(sr.type, srex.type) = 'EXCHANGE'
+        THEN CONCAT('EXCHANGE-', COALESCE(sr.id, srex.id))
+      ELSE NULL
+    END AS exchange_group_key,
+    CASE
+      WHEN s.payment_type = 'REFUND' THEN ABS(s.total)
+      WHEN srex.id IS NOT NULL THEN srex.replacement_total
       ELSE NULL
     END AS return_refund_amount
   `;
@@ -170,11 +190,8 @@ function ledgerJoinFromClause() {
     fromClause: `
     FROM customer_ledger_entries e
     INNER JOIN sales s ON s.id = e.ref_id AND s.deleted_at IS NULL
-    LEFT JOIN (
-      SELECT return_no, MAX(id) AS id, MAX(reason) AS reason
-      FROM sales_returns
-      GROUP BY return_no
-    ) sr ON sr.return_no = s.invoice_no
+    LEFT JOIN sales_returns sr ON sr.return_no = s.invoice_no
+    LEFT JOIN sales_returns srex ON srex.replacement_sale_id = s.id
     LEFT JOIN users u ON s.user_id = u.id
     LEFT JOIN branches b ON s.scope_type = 'BRANCH' AND s.scope_id = b.name
     LEFT JOIN warehouses w ON s.scope_type = 'WAREHOUSE' AND s.scope_id = w.name

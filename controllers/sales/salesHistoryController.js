@@ -11,7 +11,13 @@ const getCompanySalesHistory = async (req, res, next) => {
     const { companyId } = req.params;
     const { startDate, endDate, limit = 50 } = req.query;
     
-    let whereConditions = ['JSON_EXTRACT(customer_info, "$.id") = ?'];
+    let whereConditions = [
+      'JSON_EXTRACT(customer_info, "$.id") = ?',
+      's.deleted_at IS NULL',
+      "(s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND'))",
+      "(s.payment_method IS NULL OR s.payment_method NOT IN ('REFUND'))",
+      "s.invoice_no NOT LIKE 'RET-%'"
+    ];
     let params = [companyId];
 
     // Apply role-based filtering

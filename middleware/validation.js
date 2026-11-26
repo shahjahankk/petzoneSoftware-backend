@@ -940,8 +940,39 @@ const validateReturn = [
   
   body('refundMethod')
     .optional()
-    .isIn(['CASH', 'CARD_REFUND', 'STORE_CREDIT'])
-    .withMessage('Refund method must be CASH, CARD_REFUND, or STORE_CREDIT'),
+    .custom((value, { req }) => {
+      const isExchange = String(req.body?.type || '').toUpperCase() === 'EXCHANGE';
+      const allowed = isExchange
+        ? ['EXCHANGE']
+        : ['CASH', 'CARD_REFUND', 'STORE_CREDIT'];
+      const normalized = String(value || '').toUpperCase();
+      if (!allowed.includes(normalized)) {
+        throw new Error(isExchange
+          ? 'Exchange refund method must be EXCHANGE'
+          : 'Refund method must be CASH, CARD_REFUND, or STORE_CREDIT');
+      }
+      return true;
+    }),
+
+  body('type')
+    .optional()
+    .isIn(['REFUND', 'EXCHANGE'])
+    .withMessage('Return type must be REFUND or EXCHANGE'),
+
+  body('exchangeItems')
+    .if(body('type').equals('EXCHANGE'))
+    .isArray({ min: 1 })
+    .withMessage('At least one replacement item is required for an exchange'),
+
+  body('exchangeItems.*.inventoryItemId')
+    .if(body('type').equals('EXCHANGE'))
+    .isInt({ min: 1 })
+    .withMessage('Replacement item must reference a valid inventory item'),
+
+  body('exchangeItems.*.quantity')
+    .if(body('type').equals('EXCHANGE'))
+    .isFloat({ min: 0.01 })
+    .withMessage('Replacement quantity must be greater than 0'),
   
   body('notes')
     .optional()

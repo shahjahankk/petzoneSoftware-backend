@@ -321,7 +321,8 @@ class LedgerService {
         scopeId,
         totalRefund,
         items = [],
-        userId
+        userId,
+        refundMethod = null
       } = returnData;
       
       
@@ -346,9 +347,9 @@ class LedgerService {
       
       // Calculate original sale amounts
       const originalTotal = parseFloat(sale.total || sale.subtotal || 0);
-      const originalPaymentAmount = parseFloat(sale.payment_amount || 0);
-      const originalCreditAmount = parseFloat(sale.credit_amount || 0);
-      const originalPaymentMethod = sale.payment_method || 'CASH';
+      const originalPaymentAmount = parseFloat(sale.paymentAmount ?? sale.payment_amount ?? 0);
+      const originalCreditAmount = parseFloat(sale.creditAmount ?? sale.credit_amount ?? 0);
+      const originalPaymentMethod = sale.paymentMethod || sale.payment_method || 'CASH';
       
       // Calculate refund proportions based on original payment method
       let refundToCash = 0;
@@ -367,6 +368,11 @@ class LedgerService {
           const creditRatio = originalCreditAmount / originalTotal;
           refundToCash = totalRefund * paymentRatio;
           refundToCredit = totalRefund * creditRatio;
+        }
+
+        if (refundMethod === 'STORE_CREDIT' || refundMethod === 'EXCHANGE') {
+          refundToCredit = totalRefund;
+          refundToCash = 0;
         }
       }
       
@@ -538,11 +544,15 @@ class LedgerService {
   /**
    * Remove all GL lines for a sale/settlement reference and adjust account balances.
    */
-  static async removeEntriesForSaleReference(connection, referenceId) {
+  static async removeEntriesForSaleReference(connection, referenceId, descriptionLike = null) {
+    const filterSql = descriptionLike
+      ? ' AND description LIKE ?'
+      : '';
+    const filterParams = descriptionLike ? [descriptionLike] : [];
     const [entries] = await connection.execute(
       `SELECT id, debit_amount, credit_amount, branch_id
-       FROM ledger_entries WHERE reference_id = ?`,
-      [referenceId]
+       FROM ledger_entries WHERE reference_id = ?${filterSql}`,
+      [referenceId, ...filterParams]
     );
 
     for (const e of entries) {
@@ -562,7 +572,10 @@ class LedgerService {
       }
     }
 
-    await connection.execute('DELETE FROM ledger_entries WHERE reference_id = ?', [referenceId]);
+    await connection.execute(
+      `DELETE FROM ledger_entries WHERE reference_id = ?${filterSql}`,
+      [referenceId, ...filterParams]
+    );
   }
 
   /**

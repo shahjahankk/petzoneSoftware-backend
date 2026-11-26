@@ -10,12 +10,18 @@ class SalesReturn {
     this.reason = data.reason;
     this.notes = data.notes;
     this.totalRefund = data.total_refund;
+    this.type = data.type || 'REFUND';
+    this.refundMethod = data.refund_method || null;
+    this.replacementSaleId = data.replacement_sale_id || null;
+    this.replacementTotal = data.replacement_total != null ? parseFloat(data.replacement_total) : null;
+    this.priceDifference = data.price_difference != null ? parseFloat(data.price_difference) : null;
     this.status = data.status;
     this.processedBy = data.processed_by;
     this.approvedBy = data.approved_by;
     this.createdAt = data.created_at;
     this.updatedAt = data.updated_at;
     this.items = data.items || [];
+    this.exchangeItems = data.exchangeItems || [];
   }
 
   static async create(returnData, connection = null) {
@@ -32,7 +38,12 @@ class SalesReturn {
         notes = null,
         totalRefund = 0,
         items = [],
-        processedBy
+        processedBy,
+        type = 'REFUND',
+        refundMethod = null,
+        replacementSaleId = null,
+        replacementTotal = null,
+        priceDifference = null
       } = returnData;
 
       // Serialize concurrent returns for the same original sale: the FOR UPDATE
@@ -63,10 +74,14 @@ class SalesReturn {
           try {
             const [insertRes] = await useConnection.execute(
               `INSERT INTO sales_returns (
-                return_no, original_sale_id, user_id, reason, notes, 
-                total_refund, processed_by, status
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, 'COMPLETED')`,
-              [returnNo, originalSaleId, userId, reason, notes, totalRefund, processedBy]
+                return_no, original_sale_id, user_id, reason, notes,
+                total_refund, processed_by, status, type, refund_method,
+                replacement_sale_id, replacement_total, price_difference
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, 'COMPLETED', ?, ?, ?, ?, ?)`,
+              [
+                returnNo, originalSaleId, userId, reason, notes, totalRefund, processedBy,
+                type, refundMethod, replacementSaleId, replacementTotal, priceDifference
+              ]
             );
             return insertRes;
           } catch (e) {
@@ -80,10 +95,14 @@ class SalesReturn {
         const fallbackNo = `RET-${Date.now()}${Math.floor(Math.random() * 1000)}`;
         const [insertRes] = await useConnection.execute(
           `INSERT INTO sales_returns (
-            return_no, original_sale_id, user_id, reason, notes, 
-            total_refund, processed_by, status
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, 'COMPLETED')`,
-          [fallbackNo, originalSaleId, userId, reason, notes, totalRefund, processedBy]
+            return_no, original_sale_id, user_id, reason, notes,
+            total_refund, processed_by, status, type, refund_method,
+            replacement_sale_id, replacement_total, price_difference
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, 'COMPLETED', ?, ?, ?, ?, ?)`,
+          [
+            fallbackNo, originalSaleId, userId, reason, notes, totalRefund, processedBy,
+            type, refundMethod, replacementSaleId, replacementTotal, priceDifference
+          ]
         );
         return insertRes;
       };
@@ -110,7 +129,7 @@ class SalesReturn {
               item.category || null,
               parseFloat(item.quantity) || 0,
               parseFloat(item.originalQuantity || item.quantity) || 0,
-              parseFloat(item.remainingQuantity || item.quantity) || 0,
+              0,
               parseFloat(item.unitPrice) || 0,
               parseFloat(item.refundAmount) || 0
             ]
@@ -156,8 +175,29 @@ class SalesReturn {
         [id]
       );
 
+      const [exchangeItemRows] = await useConnection.execute(
+        `SELECT sei.*, ii.name AS inventory_item_name, ii.sku AS inventory_sku
+         FROM sales_exchange_items sei
+         LEFT JOIN inventory_items ii ON sei.inventory_item_id = ii.id
+         WHERE sei.return_id = ?
+         ORDER BY sei.id`,
+        [id]
+      );
+
       return new SalesReturn({
         ...returnRecord,
+        exchangeItems: exchangeItemRows.map(item => ({
+          id: item.id,
+          returnId: item.return_id,
+          inventoryItemId: item.inventory_item_id,
+          itemName: item.item_name || item.inventory_item_name || 'Unknown Item',
+          sku: item.sku || item.inventory_sku || null,
+          barcode: item.barcode || null,
+          category: item.category || null,
+          quantity: parseFloat(item.quantity),
+          unitPrice: parseFloat(item.unit_price),
+          lineTotal: parseFloat(item.line_total),
+        })),
         items: itemRows.map(item => ({
           id: item.id,
           returnId: item.return_id,

@@ -332,7 +332,12 @@ const getAllSales = async (req, res, next) => {
   try {
     const { scopeType, scopeId, startDate, endDate, paymentMethod } = req.query;
     
-    let whereConditions = [];
+    let whereConditions = [
+      'deleted_at IS NULL',
+      "(payment_type IS NULL OR payment_type NOT IN ('REFUND'))",
+      "(payment_method IS NULL OR payment_method NOT IN ('REFUND'))",
+      "invoice_no NOT LIKE 'RET-%'"
+    ];
     let params = [];
     
     if (scopeType && scopeId) {
@@ -641,7 +646,13 @@ const getSystemDashboard = async (req, res, next) => {
     const [branchCount] = await pool.execute('SELECT COUNT(*) as count FROM branches');
     const [warehouseCount] = await pool.execute('SELECT COUNT(*) as count FROM warehouses');
     const [inventoryCount] = await pool.execute('SELECT COUNT(*) as count FROM inventory_items');
-    const [salesCount] = await pool.execute('SELECT COUNT(*) as count FROM sales');
+    const [salesCount] = await pool.execute(`
+      SELECT COUNT(*) as count FROM sales
+      WHERE deleted_at IS NULL
+        AND (payment_type IS NULL OR payment_type NOT IN ('REFUND'))
+        AND (payment_method IS NULL OR payment_method NOT IN ('REFUND'))
+        AND invoice_no NOT LIKE 'RET-%'
+    `);
     const [companyCount] = await pool.execute('SELECT COUNT(*) as count FROM companies');
     
     // Get recent activity
@@ -653,6 +664,10 @@ const getSystemDashboard = async (req, res, next) => {
       FROM sales s
       LEFT JOIN users u ON s.user_id = u.id
       LEFT JOIN branches b ON s.scope_type = 'BRANCH' AND s.scope_id = b.id
+      WHERE s.deleted_at IS NULL
+        AND (s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND'))
+        AND (s.payment_method IS NULL OR s.payment_method NOT IN ('REFUND'))
+        AND s.invoice_no NOT LIKE 'RET-%'
       ORDER BY s.created_at DESC
       LIMIT 10
     `);

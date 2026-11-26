@@ -39,7 +39,12 @@ const getSales = async (req, res, next) => {
     const parsedLimit = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200);
     const parsedPage = Math.max(parseInt(page, 10) || 1, 1);
     const offset = (parsedPage - 1) * parsedLimit;
-    let whereConditions = ['s.deleted_at IS NULL'];
+    let whereConditions = [
+      's.deleted_at IS NULL',
+      "(s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND'))",
+      "(s.payment_method IS NULL OR s.payment_method NOT IN ('REFUND'))",
+      "s.invoice_no NOT LIKE 'RET-%'"
+    ];
     let params = [];
 
     // Apply role-based filtering
@@ -409,7 +414,16 @@ const getSales = async (req, res, next) => {
       `, [sale.id]);
 
       // Parse customer_info and enrich with salesperson name if missing
-      let customerInfo = sale.customer_info ? JSON.parse(sale.customer_info) : null;
+      let customerInfo = null;
+      if (sale.customer_info) {
+        try {
+          customerInfo = typeof sale.customer_info === 'object'
+            ? sale.customer_info
+            : JSON.parse(sale.customer_info);
+        } catch (parseError) {
+          customerInfo = null;
+        }
+      }
       
       // If customerInfo has salesperson with ID but no name, fetch the name from database
       if (customerInfo && customerInfo.salesperson && customerInfo.salesperson.id && !customerInfo.salesperson.name) {

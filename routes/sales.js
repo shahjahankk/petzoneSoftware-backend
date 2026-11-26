@@ -4,6 +4,7 @@ const { rbac } = require('../middleware/rbac');
 const { validateSale, validateSaleUpdate, validateReturn } = require('../middleware/validation');
 const { requireShiftAccessForSales } = require('../middleware/shiftAccess');
 const { checkCashierSalesPermission } = require('../middleware/salesPermissions');
+const { returnIdempotency } = require('../middleware/returnIdempotency');
 const { getInvoiceSnapshotBySaleId } = require('../controllers/invoiceSnapshotController');
 const {
   createSale, getSales, getSale, updateSale, deleteSale,
@@ -20,7 +21,7 @@ router.route('/')
 
 router.route('/returns')
   .get(rbac('ADMIN', 'CASHIER', 'WAREHOUSE_KEEPER'), getSalesReturns)
-  .post(rbac('ADMIN', 'CASHIER', 'WAREHOUSE_KEEPER'), validateReturn, createSalesReturn);
+  .post(rbac('ADMIN', 'CASHIER', 'WAREHOUSE_KEEPER'), returnIdempotency, validateReturn, createSalesReturn);
 
 router.route('/returns/:id')
   .get(rbac('ADMIN', 'CASHIER', 'WAREHOUSE_KEEPER'), getSalesReturn)

@@ -299,8 +299,12 @@ const getPOSStatus = async (req, res, next) => {
     const [recentSalesCount] = await pool.execute(`
       SELECT COUNT(*) as count 
       FROM sales 
-      WHERE pos_terminal_id = ? 
-      AND created_at >= DATE_SUB(NOW(), INTERVAL 1 HOUR)
+      WHERE pos_terminal_id = ?
+        AND deleted_at IS NULL
+        AND (payment_type IS NULL OR payment_type NOT IN ('REFUND'))
+        AND (payment_method IS NULL OR payment_method NOT IN ('REFUND'))
+        AND invoice_no NOT LIKE 'RET-%'
+        AND created_at >= DATE_SUB(NOW(), INTERVAL 1 HOUR)
     `, [id]);
 
     // Get today's sales total
@@ -309,8 +313,12 @@ const getPOSStatus = async (req, res, next) => {
         COUNT(*) as count,
         SUM(total) as total
       FROM sales 
-      WHERE pos_terminal_id = ? 
-      AND ${dateColumnInTz('created_at')} = ${currentDateInTz()}
+      WHERE pos_terminal_id = ?
+        AND deleted_at IS NULL
+        AND (payment_type IS NULL OR payment_type NOT IN ('REFUND'))
+        AND (payment_method IS NULL OR payment_method NOT IN ('REFUND'))
+        AND invoice_no NOT LIKE 'RET-%'
+        AND ${dateColumnInTz('created_at')} = ${currentDateInTz()}
     `, [id]);
 
     res.json({
@@ -387,21 +395,27 @@ const getPOSSales = async (req, res, next) => {
       });
     }
 
-    let whereConditions = ['pos_terminal_id = ?'];
+    let whereConditions = [
+      's.pos_terminal_id = ?',
+      's.deleted_at IS NULL',
+      "(s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND'))",
+      "(s.payment_method IS NULL OR s.payment_method NOT IN ('REFUND'))",
+      "s.invoice_no NOT LIKE 'RET-%'"
+    ];
     let params = [id];
 
     if (startDate) {
-      whereConditions.push('created_at >= ?');
+      whereConditions.push('s.created_at >= ?');
       params.push(startDate);
     }
 
     if (endDate) {
-      whereConditions.push('created_at <= ?');
+      whereConditions.push('s.created_at <= ?');
       params.push(endDate);
     }
 
     if (paymentMethod) {
-      whereConditions.push('payment_method = ?');
+      whereConditions.push('s.payment_method = ?');
       params.push(paymentMethod);
     }
 

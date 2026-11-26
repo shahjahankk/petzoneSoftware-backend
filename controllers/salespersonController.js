@@ -461,7 +461,13 @@ const getSalespersonPerformance = async (req, res, next) => {
       });
     }
     
-    let whereConditions = ['JSON_EXTRACT(customer_info, "$.salesperson.id") = ?'];
+    let whereConditions = [
+      'JSON_EXTRACT(customer_info, "$.salesperson.id") = ?',
+      'deleted_at IS NULL',
+      "(payment_type IS NULL OR payment_type NOT IN ('REFUND'))",
+      "(payment_method IS NULL OR payment_method NOT IN ('REFUND'))",
+      "invoice_no NOT LIKE 'RET-%'"
+    ];
     let params = [id];
     
     if (startDate) {

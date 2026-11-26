@@ -26,7 +26,16 @@ class HeldBill {
     this.discount = data.discount;
     this.total = data.total;
     this.status = data.status;
-    this.customerInfo = data.customer_info ? JSON.parse(data.customer_info) : null;
+    this.customerInfo = null;
+    if (data.customer_info) {
+      try {
+        this.customerInfo = typeof data.customer_info === 'object'
+          ? data.customer_info
+          : JSON.parse(data.customer_info);
+      } catch (parseError) {
+        this.customerInfo = null;
+      }
+    }
     this.notes = data.notes;
     this.holdReason = data.hold_reason;
     this.lastActivity = data.last_activity;

@@ -19,7 +19,8 @@ function classifyRefType(row) {
   const pm = row.payment_method || '';
   if (pt === 'OUTSTANDING_SETTLEMENT' || pt === 'CREDIT_REFUND_SETTLEMENT') return 'SETTLEMENT';
   if (pt === 'BILTY_CHARGE') return 'EXPENSE';
-  if (pm === 'REFUND' && pt === 'REFUND') return 'RETURN';
+  if (pt === 'REFUND') return 'RETURN';
+  if (pt === 'EXCHANGE' || pm === 'EXCHANGE') return 'EXCHANGE';
   return 'SALE';
 }
 
@@ -43,6 +44,10 @@ function debitCreditForSaleRow(row) {
   if (ref === 'EXPENSE') {
     const amt = Math.abs(total || subtotal);
     return { refType: 'EXPENSE', debit: amt, credit: 0 };
+  }
+  if (ref === 'EXCHANGE') {
+    const amt = Math.abs(total || subtotal);
+    return { refType: 'EXCHANGE', debit: amt, credit: 0 };
   }
   // Invoice financial leg: debit = invoice total, credit = cash/collected on this document
   const debitAmt = Math.abs(total) > 0 ? total : subtotal;

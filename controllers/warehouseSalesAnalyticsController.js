@@ -36,7 +36,13 @@ const getWarehouseSalesAnalytics = async (req, res) => {
 
     const scopePlaceholders = scopeFilterValues.map(() => '?').join(', ');
 
-    let whereConditions = [`s.scope_type = ? AND s.scope_id IN (${scopePlaceholders})`, 's.deleted_at IS NULL'];
+    let whereConditions = [
+      `s.scope_type = ? AND s.scope_id IN (${scopePlaceholders})`,
+      's.deleted_at IS NULL',
+      "(s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND','OUTSTANDING_SETTLEMENT','CASH_REFUND','CREDIT_REFUND_SETTLEMENT','BILTY_CHARGE'))",
+      "(s.payment_method IS NULL OR s.payment_method NOT IN ('REFUND','CASH_REFUND'))",
+      "s.invoice_no NOT LIKE 'RET-%'"
+    ];
     let params = ['WAREHOUSE', ...scopeFilterValues];
 
     if (retailerId && retailerId !== 'all') {
@@ -333,7 +339,13 @@ const exportWarehouseSalesAnalytics = async (req, res) => {
 
     const scopePlaceholders = scopeFilterValues.map(() => '?').join(', ');
 
-    let whereConditions = [`s.scope_type = ? AND s.scope_id IN (${scopePlaceholders})`, 's.deleted_at IS NULL'];
+    let whereConditions = [
+      `s.scope_type = ? AND s.scope_id IN (${scopePlaceholders})`,
+      's.deleted_at IS NULL',
+      "(s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND','OUTSTANDING_SETTLEMENT','CASH_REFUND','CREDIT_REFUND_SETTLEMENT','BILTY_CHARGE'))",
+      "(s.payment_method IS NULL OR s.payment_method NOT IN ('REFUND','CASH_REFUND'))",
+      "s.invoice_no NOT LIKE 'RET-%'"
+    ];
     let params = ['WAREHOUSE', ...scopeFilterValues];
 
     if (retailerId && retailerId !== 'all') {

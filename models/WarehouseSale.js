@@ -32,7 +32,16 @@ class WarehouseSale {
     this.invoice_no = data.invoice_number;
     this.customerName = data.customer_name;
     this.customerPhone = data.customer_phone;
-    this.customerInfo = data.customer_info ? JSON.parse(data.customer_info) : null;
+    this.customerInfo = null;
+    if (data.customer_info) {
+      try {
+        this.customerInfo = typeof data.customer_info === 'object'
+          ? data.customer_info
+          : JSON.parse(data.customer_info);
+      } catch (parseError) {
+        this.customerInfo = null;
+      }
+    }
     this.saleDate = data.sale_date || null;
     this.sale_date = data.sale_date || null;
     this.notes = data.notes;  
@@ -553,9 +562,13 @@ class WarehouseSale {
                s.customer_info, s.customer_name, s.customer_phone, s.notes, s.status, s.sale_date,
                            s.created_at, s.updated_at,
                            u.username as warehouse_keeper_name
-                   FROM sales s
-                   LEFT JOIN users u ON s.user_id = u.id
-                   WHERE s.scope_type = 'WAREHOUSE'`;
+                    FROM sales s
+                    LEFT JOIN users u ON s.user_id = u.id
+                    WHERE s.scope_type = 'WAREHOUSE'
+                      AND s.deleted_at IS NULL
+                      AND (s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND','OUTSTANDING_SETTLEMENT','CASH_REFUND','CREDIT_REFUND_SETTLEMENT','BILTY_CHARGE'))
+                      AND (s.payment_method IS NULL OR s.payment_method NOT IN ('REFUND','CASH_REFUND'))
+                      AND s.invoice_no NOT LIKE 'RET-%'`;
       const params = [];
 
       if (filters.retailerId) {

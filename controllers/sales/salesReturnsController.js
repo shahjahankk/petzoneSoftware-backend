@@ -13,6 +13,11 @@ const { normalizeScope } = require('../../services/inventoryLedgerService');
 const CustomerLedgerEntries = require('../../services/customerLedgerEntriesService');
 const { isLedgerMigrationComplete } = require('../../services/ledgerMigrationMeta');
 const { validateAndNormalizeReturnItems } = require('../../services/sales/returnValidationService');
+const { createSalesReturnCore } = require('../../services/sales/salesReturnCoreService');
+const {
+  createExchangeReplacementSale,
+  finalizeExchangeReturn,
+} = require('../../services/sales/salesExchangeService');
 
 // @desc    Create sales return
 // @route   POST /api/sales/returns
@@ -29,7 +34,7 @@ const createSalesReturn = async (req, res, next) => {
       });
     }
 
-    const { saleId, items, reason, notes } = req.body;
+    const { saleId, items, reason, notes, type, refundMethod, exchangeItems } = req.body;
 
     // Validate original sale
     const originalSale = await Sale.findById(saleId);
@@ -329,234 +334,83 @@ const createSalesReturn = async (req, res, next) => {
     if (manualItems.length > 0) {
     }
 
+    const ledgerReturnData = {
+      ...returnData,
+      type: String(type || 'REFUND').toUpperCase(),
+      refund_method: refundMethod || null,
+      scope_type: returnScopeType,
+      scope_id: returnScopeId,
+      customer_name: returnCustomerName,
+      customer_phone: returnCustomerPhone,
+      customer_id: originalSale.customerId || originalSale.customer_id || null,
+      retailer_id: originalSale.retailerId || originalSale.retailer_id || null,
+    };
+
+    if (!['REFUND', 'EXCHANGE'].includes(ledgerReturnData.type)) {
+      throw Object.assign(new Error('Return type must be REFUND or EXCHANGE'), { statusCode: 400 });
+    }
+    if (ledgerReturnData.type === 'EXCHANGE') {
+      if (!Array.isArray(exchangeItems) || !exchangeItems.length) {
+        throw Object.assign(
+          new Error('At least one replacement item is required for an exchange'),
+          { statusCode: 400 }
+        );
+      }
+      ledgerReturnData.refund_method = 'EXCHANGE';
+    }
+
     let salesReturn;
+    let exchangeResult = null;
+    let returnSaleId = null;
     let previousRunningBalance = 0;
     let returnOldBalance = 0;
     let returnRunningBalance = 0;
-    let returnSaleId = null;
+    let coreTotalRefund = 0;
 
     const connection = await pool.getConnection();
     try {
       await connection.beginTransaction();
-      const migrationDone = await isLedgerMigrationComplete(connection);
       await connection.execute('SELECT id FROM sales WHERE id = ? FOR UPDATE', [saleId]);
-      const lockedValidation = await validateAndNormalizeReturnItems(
-        saleId,
-        items,
-        originalSaleItems,
+      const coreResult = await createSalesReturnCore({
+        connection,
+        requestItems: items,
         originalSale,
-        connection
-      );
-      if (Math.abs(lockedValidation.totalRefund - totalRefund) > 0.01) {
-        throw new Error('Return amount changed while validating the original sale; please retry');
-      }
+        originalSaleItems,
+        returnData: ledgerReturnData,
+        actor: req.user,
+      });
 
-      salesReturn = await SalesReturn.create(returnData, connection);
+      salesReturn = await SalesReturn.findById(Number(coreResult.salesReturn.id), connection);
+      returnSaleId = coreResult.returnSale.id;
+      previousRunningBalance = coreResult.previousRunningBalance;
+      returnOldBalance = coreResult.returnOldBalance;
+      coreTotalRefund = coreResult.totalRefund;
 
-      for (let retIdx = 0; retIdx < itemsWithInventory.length; retIdx++) {
-        const item = itemsWithInventory[retIdx];
-        if (!item.inventoryItemId) {
-          continue;
-        }
-
-        const [inventoryItems] = await connection.execute(
-          'SELECT id, scope_type, scope_id, current_stock, name, sku, cost_price FROM inventory_items WHERE id = ?',
-          [item.inventoryItemId]
-        );
-
-        if (inventoryItems.length === 0) {
-          throw new Error(`Inventory item ${item.inventoryItemId} not found`);
-        }
-
-        const inventoryItem = inventoryItems[0];
-        // Scope match: the system stores scope_id as either a numeric branch/warehouse ID
-        // or a human-readable name string (e.g. "Pet Family Qasimabad"). Accept either form.
-        const saleScopeId = String(originalSale.scopeId || originalSale.scope_id || '');
-        const itemScopeId = String(inventoryItem.scope_id != null ? inventoryItem.scope_id : '');
-        const saleType = originalSale.scopeType || originalSale.scope_type || '';
-        const scopeTypeMatches = inventoryItem.scope_type === saleType;
-        const scopeIdMatches = itemScopeId === saleScopeId || saleScopeId === '' || itemScopeId === '';
-        const scopeMatches = scopeTypeMatches && scopeIdMatches;
-
-        if (!scopeMatches) {
-          // Soft check: also look up branch by name to handle name vs ID mismatch
-          let resolvedMatch = false;
-          if (scopeTypeMatches && !scopeIdMatches) {
-            try {
-              const table = saleType === 'WAREHOUSE' ? 'warehouses' : 'branches';
-              const [nameRows] = await connection.execute(
-                `SELECT id FROM ${table} WHERE id = ? OR name = ? LIMIT 1`,
-                [saleScopeId, saleScopeId]
-              );
-              if (nameRows.length > 0) {
-                resolvedMatch = String(nameRows[0].id) === itemScopeId ||
-                                String(inventoryItem.scope_id) === String(nameRows[0].id);
-              }
-            } catch (_) { /* ignore lookup errors */ }
-          }
-          if (!resolvedMatch) {
-            throw new Error(
-              `Inventory item ${item.inventoryItemId} is in ${inventoryItem.scope_type}/${inventoryItem.scope_id}, ` +
-                `but sale ${saleId} is in ${saleType}/${saleScopeId}`
-            );
-          }
-        }
-
-        const rq = parseFloat(item.quantity) || 0;
-        if (rq <= 0) {
-          continue;
-        }
-
-        await InventoryProjection.applyEvent(connection, {
-          event_type: 'RETURN',
-          inventory_item_id: item.inventoryItemId,
-          scope_type: normalizeScope(inventoryItem.scope_type),
-          scope_id: String(inventoryItem.scope_id != null ? inventoryItem.scope_id : ''),
-          quantity_in: rq,
-          quantity_out: 0,
-          reference_type: 'sales_return',
-          reference_id: `${salesReturn.id}:${item.inventoryItemId}:${retIdx}`,
-          unit_cost: parseFloat(item.costPrice) || parseFloat(inventoryItem.cost_price) || 0,
-          entry_date: new Date(),
-          created_by: req.user.id,
-        });
-
-        await createReturnTransaction(
-          item.inventoryItemId,
-          rq,
-          item.unitPrice,
-          req.user.id,
-          actingUserName,
-          actingUserRole,
-          salesReturn.id,
+      if (ledgerReturnData.type === 'EXCHANGE') {
+        exchangeResult = await createExchangeReplacementSale({
           connection,
-          originalSale.scopeType,
-          originalSale.scopeId,
-          true
-        );
-      }
-
-      if (itemsWithInventory.length > 0) {
-        await connection.execute(
-          `UPDATE sales_return_items
-           SET remaining_quantity = 0
-           WHERE return_id = ?
-             AND inventory_item_id IS NOT NULL`,
-          [salesReturn.id]
-        );
-      }
-
-      const ledgerParty = {
-        scopeType: returnScopeType,
-        scopeId: returnScopeId,
-        retailerId: originalSale.retailerId || originalSale.retailer_id || null,
-        customerName: returnCustomerName || '',
-        customerPhone: returnCustomerPhone || '',
-      };
-
-      if (migrationDone) {
-        previousRunningBalance = await CustomerLedgerEntries.getCustomerBalance(connection, ledgerParty);
-        returnOldBalance = previousRunningBalance;
-        returnRunningBalance = previousRunningBalance;
-      } else {
-        const [latestSale] = await connection.execute(
-          `SELECT running_balance FROM sales
-           WHERE (customer_name = ? OR customer_phone = ?)
-             AND scope_type = ? AND scope_id = ?
-           ORDER BY created_at DESC, id DESC LIMIT 1`,
-          [returnCustomerName, returnCustomerPhone, returnScopeType, returnScopeId]
-        );
-        previousRunningBalance = latestSale.length ? parseFloat(latestSale[0].running_balance) || 0 : 0;
-        returnOldBalance = previousRunningBalance;
-        returnRunningBalance = returnOldBalance - totalRefund;
-      }
-
-      const persistOldBal = migrationDone ? 0 : returnOldBalance;
-      const persistRunBal = migrationDone ? 0 : returnRunningBalance;
-      const returnNotes = notes || reason || `Return for sale ${originalSale.invoiceNo || originalSale.invoice_no || saleId}`;
-
-      const [returnSaleResult] = await connection.execute(
-        `INSERT INTO sales (
-          invoice_no, scope_type, scope_id, user_id, shift_id,
-          subtotal, tax, discount, total,
-          payment_method, payment_type, payment_status,
-          customer_info, notes, status,
-          customer_name, customer_phone,
-          payment_amount, credit_amount,
-          old_balance, running_balance,
-          credit_status, credit_due_date, customer_id, retailer_id
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          salesReturn.returnNo,
-          returnScopeType,
-          returnScopeId,
-          req.user.id,
-          null,
-          -totalRefund,
-          0,
-          0,
-          -totalRefund,
-          'REFUND',
-          'REFUND',
-          'COMPLETED',
-          returnCustomerInfo ? JSON.stringify(returnCustomerInfo) : null,
-          returnNotes,
-          'COMPLETED',
-          returnCustomerName,
-          returnCustomerPhone,
-          -totalRefund,
-          0,
-          persistOldBal,
-          persistRunBal,
-          'NONE',
-          null,
-          originalSale.customerId || originalSale.customer_id || null,
-          originalSale.retailerId || originalSale.retailer_id || null,
-        ]
-      );
-
-      returnSaleId = returnSaleResult.insertId;
-
-      if (migrationDone) {
-        const [saleRows] = await connection.execute('SELECT * FROM sales WHERE id = ?', [returnSaleId]);
-        if (saleRows.length > 0) {
-          const sr = saleRows[0];
-          await CustomerLedgerEntries.appendFromSalesRow(connection, sr);
-          const balAfter = await CustomerLedgerEntries.getCustomerBalance(connection, ledgerParty);
-          const { debit, credit } = CustomerLedgerEntries.debitCreditForSaleRow(sr);
-          const oldSnap = balAfter - (debit - credit);
-          await CustomerLedgerEntries.insertInvoiceSnapshot(connection, {
-            sale_id: returnSaleId,
-            customer_id: sr.customer_id,
-            retailer_id: sr.retailer_id,
-            scope_type: sr.scope_type,
-            scope_id: sr.scope_id,
-            invoice_no: sr.invoice_no,
-            old_balance: oldSnap,
-            total: Math.abs(parseFloat(sr.total) || parseFloat(sr.subtotal) || 0),
-            payment: 0,
-            final_balance: balAfter,
-          });
-          returnOldBalance = oldSnap;
-          returnRunningBalance = balAfter;
-        }
-      }
-
-      await LedgerService.recordReturnTransaction(
-        {
-          returnId: salesReturn.id,
-          returnNo: salesReturn.returnNo,
-          originalSaleId: saleId,
           originalSale,
-          scopeType: originalSale.scopeType || originalSale.scope_type,
-          scopeId: originalSale.scopeId || originalSale.scope_id,
-          totalRefund,
-          items: enrichedItems,
-          userId: req.user.id,
-        },
-        connection
-      );
+          returnData: ledgerReturnData,
+          exchangeItems,
+          actor: req.user,
+          returnedTotal: coreResult.totalRefund,
+          returnOldBalance: coreResult.returnOldBalance,
+          postReturnBalanceFromCore: coreResult.legacyPostReturnBalance,
+        });
+        await finalizeExchangeReturn(connection, Number(salesReturn.id), exchangeResult);
+      }
+
+      const migrationDoneForBalance = await isLedgerMigrationComplete(connection);
+      returnRunningBalance = migrationDoneForBalance
+        ? await CustomerLedgerEntries.getCustomerBalance(connection, {
+            scopeType: returnScopeType,
+            scopeId: returnScopeId,
+            retailerId: ledgerReturnData.retailer_id,
+            customerName: returnCustomerName || '',
+            customerPhone: returnCustomerPhone || '',
+          })
+        : Math.round(((coreResult.legacyPostReturnBalance ?? (returnOldBalance - coreResult.totalRefund)) +
+            (exchangeResult?.replacementTotal || 0)) * 100) / 100;
 
       await connection.commit();
     } catch (returnTxnError) {
@@ -604,6 +458,25 @@ const createSalesReturn = async (req, res, next) => {
           total: returnSaleRecord.total,
           payment_amount: returnSaleRecord.payment_amount,
           created_at: returnSaleRecord.created_at
+        } : null,
+        exchange: exchangeResult ? {
+          replacementSale: {
+            id: exchangeResult.replacementSale.id,
+            invoice_no: exchangeResult.replacementSale.invoice_no,
+            total: exchangeResult.replacementSale.total,
+            payment_method: exchangeResult.replacementSale.payment_method,
+            payment_type: exchangeResult.replacementSale.payment_type,
+          },
+          replacementItems: exchangeResult.normalizedItems.map((item) => ({
+            inventoryItemId: item.inventoryItemId,
+            itemName: item.itemName,
+            sku: item.sku,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            lineTotal: item.lineTotal,
+          })),
+          replacementTotal: exchangeResult.replacementTotal,
+          priceDifference: exchangeResult.priceDifference,
         } : null
       },
       debug: {
@@ -612,14 +485,14 @@ const createSalesReturn = async (req, res, next) => {
         previousRunningBalance: previousRunningBalance,
         returnOldBalance: returnOldBalance,
         returnRunningBalance: returnRunningBalance,
-        totalRefund: totalRefund
+        totalRefund: coreTotalRefund
       }
     });
   } catch (error) {
     console.error('[createSalesReturn] failed:', error && error.stack ? error.stack : error);
-    res.status(500).json({
+    res.status(error.statusCode || 500).json({
       success: false,
-      message: 'Error creating sales return',
+      message: error.message || 'Error creating sales return',
       error: error.message,
       details: (process.env.NODE_ENV === 'development' || process.env.RETURN_ERROR_STACK === '1' || req.query.__stack === '1') ? {
         stack: error.stack,
@@ -944,6 +817,30 @@ const getSalesReturn = async (req, res, next) => {
     if (items.length > 0) {
     }
 
+    const [exchangeItemRows] = await pool.execute(`
+      SELECT
+        sei.*,
+        ii.name as inventory_item_name,
+        ii.sku as inventory_sku,
+        ii.selling_price as inventory_price
+      FROM sales_exchange_items sei
+      LEFT JOIN inventory_items ii ON sei.inventory_item_id = ii.id
+      WHERE sei.return_id = ?
+      ORDER BY sei.id
+    `, [id]);
+    const exchangeItemsForResponse = exchangeItemRows.map((item) => ({
+      id: item.id,
+      returnId: item.return_id,
+      inventoryItemId: item.inventory_item_id,
+      itemName: item.item_name || item.inventory_item_name || 'Unknown Item',
+      sku: item.sku || item.inventory_sku || null,
+      barcode: item.barcode || null,
+      category: item.category || null,
+      quantity: parseFloat(item.quantity) || 0,
+      unitPrice: parseFloat(item.unit_price) || 0,
+      lineTotal: parseFloat(item.line_total) || 0,
+    }));
+
     // FALLBACK: If no items found (old returns that weren't saved), try to reconstruct from original sale
     let itemsToUse = items;
     if (items.length === 0 && returnData.original_sale_id) {
@@ -1039,6 +936,12 @@ const getSalesReturn = async (req, res, next) => {
       totalRefund: calculatedTotalRefund, // Add camelCase for frontend compatibility
       customerName: returnData.customer_name || null,
       customerPhone: returnData.customer_phone || null,
+      type: returnData.type || 'REFUND',
+      refundMethod: returnData.refund_method || null,
+      replacementSaleId: returnData.replacement_sale_id || null,
+      replacementTotal: returnData.replacement_total != null ? parseFloat(returnData.replacement_total) : null,
+      priceDifference: returnData.price_difference != null ? parseFloat(returnData.price_difference) : null,
+      exchangeItems: exchangeItemsForResponse,
     };
 
     res.json({
@@ -1117,6 +1020,13 @@ const updateSalesReturn = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Sales return not found' });
     }
     const existingReturn = returnRows[0];
+    if (String(existingReturn.type || 'REFUND').toUpperCase() === 'EXCHANGE' && Array.isArray(items)) {
+      await connection.rollback();
+      return res.status(409).json({
+        success: false,
+        message: 'Exchange items cannot be edited after the exchange is created',
+      });
+    }
     if (['CANCELLED', 'REJECTED'].includes(String(existingReturn.status || '').toUpperCase())) {
       await connection.rollback();
       return res.status(409).json({ success: false, message: 'Cancelled or rejected returns cannot be edited' });
@@ -1173,8 +1083,8 @@ const updateSalesReturn = async (req, res, next) => {
     }
     const [refundSales] = await connection.execute(
       `SELECT * FROM sales
-       WHERE invoice_no = ? AND payment_method = 'REFUND' AND payment_type = 'REFUND'
-         AND deleted_at IS NULL
+        WHERE invoice_no = ? AND payment_type = 'REFUND'
+           AND deleted_at IS NULL
        ORDER BY id DESC LIMIT 1 FOR UPDATE`,
       [existingReturn.return_no]
     );
@@ -1330,12 +1240,17 @@ const updateSalesReturn = async (req, res, next) => {
     const [updatedSaleRows] = await connection.execute('SELECT * FROM sales WHERE id = ?', [refundSale.id]);
     const updatedRefundSale = updatedSaleRows[0];
 
-    await LedgerService.removeEntriesForSaleReference(connection, Number(id));
+    await LedgerService.removeEntriesForSaleReference(
+      connection,
+      Number(id),
+      `Return ${existingReturn.return_no} - %`
+    );
     await LedgerService.recordReturnTransaction({
       returnId: Number(id), returnNo: existingReturn.return_no,
       originalSaleId: existingReturn.original_sale_id, originalSale,
       scopeType: originalSale.scope_type, scopeId: originalSale.scope_id,
       totalRefund, items: canonicalItems, userId: req.user?.id,
+      refundMethod: existingReturn.refund_method || 'CASH',
     }, connection);
 
     if (await isLedgerMigrationComplete(connection)) {

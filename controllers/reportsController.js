@@ -32,7 +32,8 @@ const getReportsSummary = async (req, res) => {
       let q = `SELECT COUNT(*) as count FROM sales WHERE status='COMPLETED'
                AND deleted_at IS NULL
                AND (payment_type IS NULL OR payment_type NOT IN ('OUTSTANDING_SETTLEMENT','CASH_REFUND','REFUND','BILTY_CHARGE','CREDIT_REFUND_SETTLEMENT'))
-               AND (payment_method IS NULL OR payment_method NOT IN ('CASH_REFUND','REFUND'))`;
+               AND (payment_method IS NULL OR payment_method NOT IN ('CASH_REFUND','REFUND'))
+               AND invoice_no NOT LIKE 'RET-%'`;
       const p = [];
       if (user?.role === 'WAREHOUSE_KEEPER' && user?.warehouseId) { q += ' AND scope_type = "WAREHOUSE" AND scope_id = ?'; p.push(String(user.warehouseId)); }
       const [r] = await pool.execute(q, p); summary.totalSales = r[0]?.count || 0;

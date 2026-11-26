@@ -162,6 +162,31 @@ async function loadBiltyItemsMap(saleIds) {
   return map;
 }
 
+async function loadExchangeItemsMap(returnIds) {
+  const map = new Map();
+  const unique = [...new Set(returnIds.map((id) => Number(id)).filter(Boolean))];
+  if (!unique.length) return map;
+  const ph = unique.map(() => '?').join(',');
+  const [rows] = await pool.execute(
+    `SELECT * FROM sales_exchange_items WHERE return_id IN (${ph}) ORDER BY id`,
+    unique
+  );
+  for (const row of rows) {
+    const list = map.get(Number(row.return_id)) || [];
+    list.push({
+      ...row,
+      item_name: row.item_name || 'Unknown Item',
+      name: row.item_name || 'Unknown Item',
+      quantity: parseFloat(row.quantity) || 0,
+      unit_price: parseFloat(row.unit_price) || 0,
+      total: parseFloat(row.line_total) || 0,
+      line_kind: 'EXCHANGE_REPLACEMENT',
+    });
+    map.set(Number(row.return_id), list);
+  }
+  return map;
+}
+
 /** Resolve return_id for refund sale rows when join did not populate it. */
 async function resolveReturnIdsForSales(saleIds) {
   const map = new Map();
@@ -209,15 +234,20 @@ async function attachLedgerTransactionItems(transactions) {
     } else {
       saleIds.push(id);
     }
+    if (t.return_id && ['EXCHANGE', 'RETURN'].includes(t.transaction_type)) {
+      returnIds.push(Number(t.return_id));
+    }
   }
 
   const extraReturnMap = await resolveReturnIdsForSales(returnSaleIds);
   for (const rid of extraReturnMap.values()) returnIds.push(rid);
 
-  const [saleMap, returnMap, biltyMap] = await Promise.all([
+  const uniqueReturnIds = [...new Set(returnIds)];
+  const [saleMap, returnMap, biltyMap, exchangeMap] = await Promise.all([
     loadSaleItemsMap([...saleIds, ...returnSaleIds]),
-    loadReturnItemsMap(returnIds),
+    loadReturnItemsMap(uniqueReturnIds),
     loadBiltyItemsMap(biltyIds),
+    loadExchangeItemsMap(uniqueReturnIds),
   ]);
 
   return transactions.map((transaction) => {
@@ -227,6 +257,8 @@ async function attachLedgerTransactionItems(transactions) {
     try {
       if (transaction.transaction_type === 'BILTY') {
         items = biltyMap.get(saleId) || [];
+      } else if (transaction.transaction_type === 'EXCHANGE' && transaction.return_id) {
+        items = exchangeMap.get(Number(transaction.return_id)) || [];
       } else if (
         transaction.transaction_type === 'RETURN' ||
         transaction.return_id ||
@@ -247,7 +279,10 @@ async function attachLedgerTransactionItems(transactions) {
       items = fallbackLineItems(transaction);
     }
 
-    return { ...transaction, items };
+    const exchangeItems = transaction.return_id
+      ? exchangeMap.get(Number(transaction.return_id)) || []
+      : [];
+    return { ...transaction, items, exchange_items: exchangeItems };
   });
 }
 

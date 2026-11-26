@@ -273,7 +273,8 @@ const getCustomerLedger = async (req, res) => {
         CASE 
           WHEN s.payment_type = 'OUTSTANDING_SETTLEMENT' THEN 'SETTLEMENT'
           WHEN s.payment_type = 'BILTY_CHARGE' THEN 'BILTY'
-          WHEN s.payment_method = 'REFUND' AND s.payment_type = 'REFUND' THEN 'RETURN'
+          WHEN s.payment_type = 'REFUND' THEN 'RETURN'
+          WHEN s.payment_method = 'EXCHANGE' OR s.payment_type = 'EXCHANGE' THEN 'EXCHANGE'
           ELSE 'SALE'
         END as transaction_type,
         s.payment_amount as paid_amount,
@@ -324,7 +325,8 @@ const getCustomerLedger = async (req, res) => {
         CASE 
           WHEN s.payment_type = 'OUTSTANDING_SETTLEMENT' THEN 'SETTLEMENT'
           WHEN s.payment_type = 'BILTY_CHARGE' THEN 'BILTY'
-          WHEN s.payment_method = 'REFUND' AND s.payment_type = 'REFUND' THEN 'RETURN'
+          WHEN s.payment_type = 'REFUND' THEN 'RETURN'
+          WHEN s.payment_method = 'EXCHANGE' OR s.payment_type = 'EXCHANGE' THEN 'EXCHANGE'
           ELSE 'SALE'
         END as transaction_type,
         -- Use actual payment_amount and credit_amount from database
@@ -335,7 +337,7 @@ const getCustomerLedger = async (req, res) => {
         sr.id as return_id,
         sr.reason as return_reason,
         CASE 
-          WHEN s.payment_method = 'REFUND' THEN ABS(s.total)
+          WHEN s.payment_type = 'REFUND' THEN ABS(s.total)
           ELSE NULL
         END as return_refund_amount
       FROM sales s
@@ -484,7 +486,8 @@ if (isAllCustomers) {
           CASE 
             WHEN s.payment_type = 'OUTSTANDING_SETTLEMENT' THEN 'SETTLEMENT'
             WHEN s.payment_type = 'BILTY_CHARGE' THEN 'BILTY'
-            WHEN s.payment_method = 'REFUND' AND s.payment_type = 'REFUND' THEN 'RETURN'
+            WHEN s.payment_type = 'REFUND' THEN 'RETURN'
+          WHEN s.payment_method = 'EXCHANGE' OR s.payment_type = 'EXCHANGE' THEN 'EXCHANGE'
             ELSE 'SALE'
           END as transaction_type,
           s.payment_amount as paid_amount,
@@ -493,7 +496,7 @@ if (isAllCustomers) {
           sr.id as return_id,
           sr.reason as return_reason,
           CASE 
-            WHEN s.payment_method = 'REFUND' THEN ABS(s.total)
+            WHEN s.payment_type = 'REFUND' THEN ABS(s.total)
             ELSE NULL
           END as return_refund_amount
         FROM sales s
@@ -798,7 +801,8 @@ const getAllCustomersWithSummaries = async (req, res) => {
       const transactionsQuery = `
         SELECT
           CASE 
-            WHEN s.payment_method = 'REFUND' AND s.payment_type = 'REFUND' THEN 'RETURN'
+            WHEN s.payment_type = 'REFUND' THEN 'RETURN'
+          WHEN s.payment_method = 'EXCHANGE' OR s.payment_type = 'EXCHANGE' THEN 'EXCHANGE'
             ELSE 'SALE'
           END as source,
           s.id as transaction_id,
@@ -1259,7 +1263,8 @@ const [transactions] = await pool.execute(`
       CASE
         WHEN s.payment_type = 'OUTSTANDING_SETTLEMENT' THEN 'SETTLEMENT'
         WHEN s.payment_type = 'BILTY_CHARGE' THEN 'BILTY'
-        WHEN s.payment_method = 'REFUND' AND s.payment_type = 'REFUND' THEN 'RETURN'
+        WHEN s.payment_type = 'REFUND' THEN 'RETURN'
+          WHEN s.payment_method = 'EXCHANGE' OR s.payment_type = 'EXCHANGE' THEN 'EXCHANGE'
         ELSE 'SALE'
       END as transaction_type,
       s.payment_amount as paid_amount,
@@ -1365,7 +1370,8 @@ const getDetailedCustomerLedgerData = async (customerId, user, options = {}) => 
       CASE 
         WHEN s.payment_type = 'OUTSTANDING_SETTLEMENT' THEN 'SETTLEMENT'
         WHEN s.payment_type = 'BILTY_CHARGE' THEN 'BILTY'
-        WHEN s.payment_method = 'REFUND' AND s.payment_type = 'REFUND' THEN 'RETURN'
+        WHEN s.payment_type = 'REFUND' THEN 'RETURN'
+          WHEN s.payment_method = 'EXCHANGE' OR s.payment_type = 'EXCHANGE' THEN 'EXCHANGE'
         ELSE 'SALE'
       END as transaction_type,
       -- Use actual payment_amount and credit_amount from database
@@ -1376,7 +1382,7 @@ const getDetailedCustomerLedgerData = async (customerId, user, options = {}) => 
       sr.id as return_id,
       sr.reason as return_reason,
       CASE 
-        WHEN s.payment_method = 'REFUND' THEN ABS(s.total)
+        WHEN s.payment_type = 'REFUND' THEN ABS(s.total)
         ELSE NULL
       END as return_refund_amount
     FROM sales s
@@ -1559,15 +1565,19 @@ const normalizeLedgerTransactions = (transactions = []) => {
 
     // Determine transaction type (prefer DB payment_type when CASE labels row as generic SALE)
     let normalizedType = rawTransactionType;
-    if (paymentType === 'CREDIT_REFUND_SETTLEMENT') {
+    if (paymentType === 'REFUND') {
+      normalizedType = 'RETURN';
+    } else if (paymentType === 'CREDIT_REFUND_SETTLEMENT') {
       normalizedType = 'CREDIT_REFUND_SETTLEMENT';
     } else if (paymentType === 'BILTY_CHARGE') {
       normalizedType = 'BILTY';
     } else if (paymentType === 'OUTSTANDING_SETTLEMENT') {
       normalizedType = 'SETTLEMENT';
+    } else if (paymentType === 'EXCHANGE' || paymentMethod === 'EXCHANGE') {
+      normalizedType = paymentType === 'REFUND' ? 'RETURN' : 'EXCHANGE';
     }
     if (!normalizedType) {
-      if (paymentMethod === 'REFUND' && paymentType === 'REFUND') {
+      if (paymentType === 'REFUND' && ['REFUND', 'STORE_CREDIT', 'CARD_REFUND', 'EXCHANGE'].includes(paymentMethod)) {
         normalizedType = 'RETURN';
       } else {
         normalizedType = 'SALE';
@@ -1602,7 +1612,7 @@ const normalizeLedgerTransactions = (transactions = []) => {
     } else if (paymentType === 'CREDIT_REFUND_SETTLEMENT' || normalizedType === 'CREDIT_REFUND_SETTLEMENT') {
       currentBillAmount = 0;
       newBalance = oldBalance - paid;
-    } else if (normalizedType === 'RETURN' || (paymentMethod === 'REFUND' && paymentType === 'REFUND')) {
+    } else if (normalizedType === 'RETURN' || (paymentType === 'REFUND' && ['REFUND', 'STORE_CREDIT', 'CARD_REFUND', 'EXCHANGE'].includes(paymentMethod))) {
       // Return: amount is negative, reduces balance
       currentBillAmount = amount; // Already negative
       actualPayment = 0; // Returns typically have no payment
@@ -1679,10 +1689,7 @@ const billAmountForSummary = (transaction) => {
   const total = numeric(transaction.total);
   const subtotal = numeric(transaction.subtotal);
 
-  if (
-    type === 'RETURN' ||
-    (transaction.payment_method === 'REFUND' && transaction.payment_type === 'REFUND')
-  ) {
+  if (type === 'RETURN' || transaction.payment_type === 'REFUND') {
     const mag =
       Math.abs(amount) > 0.01
         ? Math.abs(amount)

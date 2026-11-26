@@ -83,7 +83,11 @@ const getSalespersonInvoiceStats = async (req, res, next) => {
         MAX(created_at) as last_date,
         SUM(total) as total_sales_amount
       FROM sales 
-      WHERE invoice_no LIKE ?`,
+      WHERE invoice_no LIKE ?
+        AND deleted_at IS NULL
+        AND (payment_type IS NULL OR payment_type NOT IN ('REFUND'))
+        AND (payment_method IS NULL OR payment_method NOT IN ('REFUND'))
+        AND invoice_no NOT LIKE 'RET-%'`,
       [`${prefix}-%`]
     );
     

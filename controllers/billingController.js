@@ -308,16 +308,16 @@ const printInvoice = async (req, res, next) => {
 const getBillingHistory = async (req, res, next) => {
   try {
     const { warehouseId, branchId, companyId, startDate, endDate, page = 1, limit = 10 } = req.query;
-    
+
     // Simple query for MySQL - get all sales for now
-    const sales = await Sale.find({}, { 
-      limit: parseInt(limit), 
+    const sales = await Sale.find({ excludeRefunds: true }, {
+      limit: parseInt(limit),
       offset: (parseInt(page) - 1) * parseInt(limit),
       orderBy: 'created_at DESC'
     });
-    
-    const total = await Sale.count({});
-    
+
+    const total = await Sale.count({ excludeRefunds: true });
+
     res.json({
       success: true,
       count: sales.length,

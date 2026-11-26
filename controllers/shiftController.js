@@ -474,6 +474,9 @@ const endShift = async (req, res, next) => {
       WHERE s.user_id = ?
         AND s.status = 'COMPLETED'
         AND s.deleted_at IS NULL
+        AND (s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND'))
+        AND (s.payment_method IS NULL OR s.payment_method NOT IN ('REFUND'))
+        AND s.invoice_no NOT LIKE 'RET-%'
         AND s.created_at BETWEEN ? AND ?
     `, [userId, startTime, endTime]);
 
@@ -610,6 +613,10 @@ const getShiftStats = async (req, res, next) => {
         SUM(discount) as totalDiscount
       FROM sales 
       WHERE shift_id = ?
+        AND deleted_at IS NULL
+        AND (payment_type IS NULL OR payment_type NOT IN ('REFUND'))
+        AND (payment_method IS NULL OR payment_method NOT IN ('REFUND'))
+        AND invoice_no NOT LIKE 'RET-%'
     `, [id]);
 
     // Get assigned users
@@ -1002,15 +1009,28 @@ const getShiftSessionsReport = async (req, res, next) => {
     const salesRows = await executeQuery(`
       SELECT
         ss.id AS session_id,
-        COUNT(s.id) AS bill_count,
-        COALESCE(SUM(s.total), 0) AS total_sales,
-        COALESCE(SUM(CASE WHEN s.payment_method = 'CASH' THEN s.total ELSE 0 END), 0) AS cash_sales,
+        COALESCE(SUM(CASE WHEN s.id IS NOT NULL
+          AND (s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND'))
+          AND (s.payment_method IS NULL OR s.payment_method NOT IN ('REFUND'))
+          AND s.invoice_no NOT LIKE 'RET-%' THEN 1 ELSE 0 END), 0) AS bill_count,
+        COALESCE(SUM(CASE WHEN (s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND'))
+          AND (s.payment_method IS NULL OR s.payment_method NOT IN ('REFUND'))
+          AND s.invoice_no NOT LIKE 'RET-%' THEN s.total ELSE 0 END), 0) AS total_sales,
+        COALESCE(SUM(CASE WHEN s.payment_method = 'CASH'
+          AND (s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND'))
+          AND s.invoice_no NOT LIKE 'RET-%' THEN s.total ELSE 0 END), 0) AS cash_sales,
         COALESCE(SUM(CASE WHEN s.payment_method IN ('REFUND', 'CASH_REFUND')
                             OR s.payment_type IN ('REFUND', 'CASH_REFUND')
                           THEN s.total ELSE 0 END), 0) AS cash_refunds,
-        COALESCE(SUM(CASE WHEN s.payment_method = 'CARD' THEN s.total ELSE 0 END), 0) AS card_sales,
-        COALESCE(SUM(CASE WHEN s.payment_method = 'MOBILE_PAYMENT' THEN s.total ELSE 0 END), 0) AS mobile_sales,
-        COALESCE(SUM(CASE WHEN s.payment_method = 'FULLY_CREDIT' THEN s.total ELSE 0 END), 0) AS credit_sales
+        COALESCE(SUM(CASE WHEN s.payment_method = 'CARD'
+          AND (s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND'))
+          AND s.invoice_no NOT LIKE 'RET-%' THEN s.total ELSE 0 END), 0) AS card_sales,
+        COALESCE(SUM(CASE WHEN s.payment_method = 'MOBILE_PAYMENT'
+          AND (s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND'))
+          AND s.invoice_no NOT LIKE 'RET-%' THEN s.total ELSE 0 END), 0) AS mobile_sales,
+        COALESCE(SUM(CASE WHEN s.payment_method = 'FULLY_CREDIT'
+          AND (s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND'))
+          AND s.invoice_no NOT LIKE 'RET-%' THEN s.total ELSE 0 END), 0) AS credit_sales
       FROM shift_sessions ss
       INNER JOIN shifts sh ON sh.id = ss.shift_id
       LEFT JOIN sales s

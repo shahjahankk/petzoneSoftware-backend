@@ -958,7 +958,13 @@ const getWarehouseSalesSummary = async (req, res, next) => {
   try {
     const { startDate, endDate } = req.query;
 
-    const conditions = ['s.scope_type = ?', 's.deleted_at IS NULL'];
+    const conditions = [
+      's.scope_type = ?',
+      's.deleted_at IS NULL',
+      "(s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND','OUTSTANDING_SETTLEMENT','CASH_REFUND','CREDIT_REFUND_SETTLEMENT','BILTY_CHARGE'))",
+      "(s.payment_method IS NULL OR s.payment_method NOT IN ('REFUND','CASH_REFUND'))",
+      "s.invoice_no NOT LIKE 'RET-%'"
+    ];
     const params = ['WAREHOUSE'];
 
     if (req.user.role === 'WAREHOUSE_KEEPER') {
@@ -1070,6 +1076,9 @@ const getLastCustomerItemPrice = async (req, res, next) => {
         ${customerCondition}
         AND s.deleted_at IS NULL
         AND s.scope_type = 'WAREHOUSE'
+        AND (s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND'))
+        AND (s.payment_method IS NULL OR s.payment_method NOT IN ('REFUND'))
+        AND s.invoice_no NOT LIKE 'RET-%'
       ORDER BY ${LEDGER_SORT_AT_S} DESC, s.id DESC
       LIMIT 1
     `, [inventoryItemId, ...params]);

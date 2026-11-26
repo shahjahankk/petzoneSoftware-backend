@@ -51,6 +51,9 @@ const getDashboardAnalytics = async (req, res) => {
         WHERE ${monthColumnInTz('s.created_at')} = ${currentMonthInTz()}
         AND ${yearColumnInTz('s.created_at')} = ${currentYearInTz()}
         AND s.status = 'COMPLETED'
+        AND (s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND'))
+        AND (s.payment_method IS NULL OR s.payment_method NOT IN ('REFUND'))
+        AND s.invoice_no NOT LIKE 'RET-%'
         ${salesWhereClause}
       `, salesParams)
       
@@ -67,6 +70,9 @@ const getDashboardAnalytics = async (req, res) => {
         WHERE ${monthColumnInTz('s.created_at')} = ${currentMonthInTz()}
         AND ${yearColumnInTz('s.created_at')} = ${currentYearInTz()}
         AND s.status = 'COMPLETED'
+        AND (s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND'))
+        AND (s.payment_method IS NULL OR s.payment_method NOT IN ('REFUND'))
+        AND s.invoice_no NOT LIKE 'RET-%'
         ${salesWhereClause}
       `, salesParams)
       
@@ -211,6 +217,9 @@ const getDashboardSummary = async (req, res) => {
                 WHERE ${monthColumnInTz('s.created_at')} = ${currentMonthInTz()}
                 AND ${yearColumnInTz('s.created_at')} = ${currentYearInTz()}
                 AND s.status = 'COMPLETED'
+                AND (s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND'))
+                AND (s.payment_method IS NULL OR s.payment_method NOT IN ('REFUND'))
+                AND s.invoice_no NOT LIKE 'RET-%'
                 ${salesWhereClause}`,
         params: salesParams
       },
@@ -221,6 +230,9 @@ const getDashboardSummary = async (req, res) => {
                 WHERE ${monthColumnInTz('s.created_at')} = ${currentMonthInTz()}
                 AND ${yearColumnInTz('s.created_at')} = ${currentYearInTz()}
                 AND s.status = 'COMPLETED'
+                AND (s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND'))
+                AND (s.payment_method IS NULL OR s.payment_method NOT IN ('REFUND'))
+                AND s.invoice_no NOT LIKE 'RET-%'
                 ${salesWhereClause}`,
         params: salesParams
       },

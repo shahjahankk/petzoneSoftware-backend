@@ -1,7 +1,7 @@
 const { executeQuery } = require('../config/database');
 
 const PK_OFFSET_MS = 5 * 60 * 60 * 1000;
-const TIME_OFFSET_SQL = "INTERVAL (5 - TIMESTAMPDIFF(HOUR, UTC_TIMESTAMP(), NOW())) HOUR";
+const SALES_TIME_OFFSET_SQL = "INTERVAL (5 - TIMESTAMPDIFF(HOUR, UTC_TIMESTAMP(), NOW())) HOUR";
 
 let lastAutoCloseDate = null;
 
@@ -45,8 +45,8 @@ async function getSalesTotals(sessionId) {
      )
      AND s.status = 'COMPLETED'
      AND s.deleted_at IS NULL
-     AND s.created_at >= ss.actual_start_time + ${TIME_OFFSET_SQL}
-     AND s.created_at <= COALESCE(ss.actual_end_time + ${TIME_OFFSET_SQL}, UTC_TIMESTAMP() + INTERVAL 5 HOUR)
+     AND s.created_at >= ss.actual_start_time + ${SALES_TIME_OFFSET_SQL}
+     AND s.created_at <= COALESCE(ss.actual_end_time + ${SALES_TIME_OFFSET_SQL}, UTC_TIMESTAMP() + INTERVAL 5 HOUR)
     WHERE ss.id = ?
   `, [sessionId]);
   return rows[0] || {};
@@ -74,8 +74,8 @@ async function getExpenseTotals(sessionId) {
      AND fv.payment_method = 'CASH'
      AND fv.status = 'APPROVED'
      AND fv.deleted_at IS NULL
-     AND fv.created_at >= ss.actual_start_time + ${TIME_OFFSET_SQL}
-     AND fv.created_at <= COALESCE(ss.actual_end_time + ${TIME_OFFSET_SQL}, UTC_TIMESTAMP() + INTERVAL 5 HOUR)
+     AND fv.created_at >= ss.actual_start_time
+     AND fv.created_at <= COALESCE(ss.actual_end_time, NOW())
     WHERE ss.id = ?
   `, [sessionId]);
   return rows[0] || {};
@@ -105,8 +105,8 @@ async function getMovementTotals(sessionId) {
              END, ''
            ))
            AND cm.user_id = ss.user_id
-           AND cm.created_at >= ss.actual_start_time + ${TIME_OFFSET_SQL}
-           AND cm.created_at <= COALESCE(ss.actual_end_time + ${TIME_OFFSET_SQL}, UTC_TIMESTAMP() + INTERVAL 5 HOUR)
+           AND cm.created_at >= ss.actual_start_time
+           AND cm.created_at <= COALESCE(ss.actual_end_time, NOW())
          )
        )
       WHERE ss.id = ?

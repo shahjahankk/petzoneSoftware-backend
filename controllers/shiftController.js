@@ -1158,6 +1158,96 @@ const getShiftSessionsReport = async (req, res, next) => {
   }
 };
 
+const updateShiftSessionCash = async (req, res, next) => {
+  try {
+    const sessionId = Number(req.params.id);
+    const hasInitialCash = Object.prototype.hasOwnProperty.call(req.body, 'initialCash');
+    const hasFinalCash = Object.prototype.hasOwnProperty.call(req.body, 'finalCash');
+
+    if (!Number.isInteger(sessionId) || sessionId <= 0 || (!hasInitialCash && !hasFinalCash)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Session ID and at least one cash amount are required',
+      });
+    }
+
+    const parseAmount = (value, label) => {
+      if (value === null || value === undefined || value === '') {
+        throw new Error(`${label} is required`);
+      }
+      const amount = Number(value);
+      if (!Number.isFinite(amount) || amount < 0) {
+        throw new Error(`${label} must be zero or greater`);
+      }
+      return Math.round(amount * 100) / 100;
+    };
+
+    let initialCash;
+    let finalCash;
+    try {
+      if (hasInitialCash) initialCash = parseAmount(req.body.initialCash, 'Opening cash');
+      if (hasFinalCash && req.body.finalCash !== null && req.body.finalCash !== '') {
+        finalCash = parseAmount(req.body.finalCash, 'Closing cash');
+      }
+    } catch (error) {
+      return res.status(400).json({ success: false, message: error.message });
+    }
+
+    const sessions = await executeQuery('SELECT id, status FROM shift_sessions WHERE id = ?', [sessionId]);
+    if (sessions.length === 0) {
+      return res.status(404).json({ success: false, message: 'Shift session not found' });
+    }
+
+    const session = sessions[0];
+    if (hasFinalCash && finalCash === undefined && session.status === 'ENDED') {
+      return res.status(400).json({
+        success: false,
+        message: 'Closing cash is required for ended shift sessions',
+      });
+    }
+    if (hasFinalCash && finalCash !== undefined && session.status !== 'ENDED') {
+      return res.status(400).json({
+        success: false,
+        message: 'Closing cash can only be edited after a shift session ends',
+      });
+    }
+
+    const updates = [];
+    const params = [];
+    if (hasInitialCash) {
+      updates.push('initial_cash = ?');
+      params.push(initialCash);
+    }
+    if (hasFinalCash) {
+      updates.push('final_cash = ?');
+      params.push(finalCash === undefined ? null : finalCash);
+    }
+    updates.push('updated_at = NOW()');
+    params.push(sessionId);
+
+    await executeQuery(`UPDATE shift_sessions SET ${updates.join(', ')} WHERE id = ?`, params);
+
+    const [updatedSession] = await executeQuery(`
+      SELECT ss.*, sh.name AS shift_name, sh.start_time, sh.end_time
+      FROM shift_sessions ss
+      JOIN shifts sh ON sh.id = ss.shift_id
+      WHERE ss.id = ?
+    `, [sessionId]);
+
+    return res.json({
+      success: true,
+      message: 'Shift cash amounts updated successfully',
+      data: updatedSession,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: 'Error updating shift cash amounts',
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   getShifts,
   getShift,
@@ -1172,6 +1262,7 @@ module.exports = {
   getActiveShift,
   getRecentShiftSessions,
   getShiftSessionsReport,
+  updateShiftSessionCash,
   assignUserToShift,
   removeUserFromShift
 };

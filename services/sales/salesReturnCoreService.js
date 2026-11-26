@@ -104,6 +104,7 @@ async function createSalesReturnCore({
     reason: returnData.reason,
     notes: returnData.notes,
     totalRefund,
+    refundAmount: totalRefund,
     items: enrichedItems,
     processedBy: actor.id || null,
     type: returnType,

@@ -10,6 +10,7 @@ class SalesReturn {
     this.reason = data.reason;
     this.notes = data.notes;
     this.totalRefund = data.total_refund;
+    this.refundAmount = data.refund_amount ?? data.total_refund ?? 0;
     this.type = data.type || 'REFUND';
     this.refundMethod = data.refund_method || null;
     this.replacementSaleId = data.replacement_sale_id || null;
@@ -37,6 +38,7 @@ class SalesReturn {
         reason = 'Customer Return',
         notes = null,
         totalRefund = 0,
+        refundAmount = totalRefund,
         items = [],
         processedBy,
         type = 'REFUND',
@@ -75,11 +77,11 @@ class SalesReturn {
             const [insertRes] = await useConnection.execute(
               `INSERT INTO sales_returns (
                 return_no, original_sale_id, user_id, reason, notes,
-                total_refund, processed_by, status, type, refund_method,
+                total_refund, refund_amount, processed_by, status, type, refund_method,
                 replacement_sale_id, replacement_total, price_difference
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, 'COMPLETED', ?, ?, ?, ?, ?)`,
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'COMPLETED', ?, ?, ?, ?, ?)`,
               [
-                returnNo, originalSaleId, userId, reason, notes, totalRefund, processedBy,
+                returnNo, originalSaleId, userId, reason, notes, totalRefund, refundAmount, processedBy,
                 type, refundMethod, replacementSaleId, replacementTotal, priceDifference
               ]
             );
@@ -96,11 +98,11 @@ class SalesReturn {
         const [insertRes] = await useConnection.execute(
           `INSERT INTO sales_returns (
             return_no, original_sale_id, user_id, reason, notes,
-            total_refund, processed_by, status, type, refund_method,
+            total_refund, refund_amount, processed_by, status, type, refund_method,
             replacement_sale_id, replacement_total, price_difference
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, 'COMPLETED', ?, ?, ?, ?, ?)`,
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'COMPLETED', ?, ?, ?, ?, ?)`,
           [
-            fallbackNo, originalSaleId, userId, reason, notes, totalRefund, processedBy,
+            fallbackNo, originalSaleId, userId, reason, notes, totalRefund, refundAmount, processedBy,
             type, refundMethod, replacementSaleId, replacementTotal, priceDifference
           ]
         );
@@ -255,20 +257,20 @@ class SalesReturn {
     if (this.id) {
       // Update existing sales return
       await pool.execute(
-        `UPDATE sales_returns SET return_no = ?, original_sale_id = ?, reason = ?, 
-         notes = ?, total_refund = ?, status = ?, processed_by = ?, approved_by = ?, 
+         `UPDATE sales_returns SET return_no = ?, original_sale_id = ?, reason = ?,
+         notes = ?, total_refund = ?, refund_amount = ?, status = ?, processed_by = ?, approved_by = ?,
          updated_at = NOW() WHERE id = ?`,
         [this.returnNo, this.originalSaleId, this.reason, this.notes, this.totalRefund,
-         this.status, this.processedBy, this.approvedBy, this.id]
+         this.refundAmount ?? this.totalRefund, this.status, this.processedBy, this.approvedBy, this.id]
       );
     } else {
       // Create new sales return
       const result = await pool.execute(
-        `INSERT INTO sales_returns (return_no, original_sale_id, reason, notes, 
-         total_refund, status, processed_by, approved_by, created_at, updated_at) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+        `INSERT INTO sales_returns (return_no, original_sale_id, reason, notes,
+         total_refund, refund_amount, status, processed_by, approved_by, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
         [this.returnNo, this.originalSaleId, this.reason, this.notes, this.totalRefund,
-         this.status, this.processedBy, this.approvedBy]
+         this.refundAmount ?? this.totalRefund, this.status, this.processedBy, this.approvedBy]
       );
       this.id = result[0].insertId;
     }

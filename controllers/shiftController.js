@@ -6,6 +6,8 @@ const Sale = require('../models/Sale');
 const { pool, sqliteDb, useSQLite, executeQuery } = require('../config/database');
 const { SOURCE_TIMEZONE, REPORT_TIMEZONE } = require('../utils/reportDate');
 
+const roundMoney = (value) => Math.round((Number(value) || 0) * 100) / 100;
+
 // @desc    Get all shifts
 // @route   GET /api/shifts
 // @access  Private (Admin, Warehouse Keeper)
@@ -392,11 +394,80 @@ const startShift = async (req, res, next) => {
       });
     }
 
-    // Create new shift session
+    const normalizedInitialCash = roundMoney(initialCash);
+    if (!Number.isFinite(normalizedInitialCash) || normalizedInitialCash < 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Initial cash must be zero or greater'
+      });
+    }
+
+    const shiftScopeType = shift.scope_type || scopeType;
+    const shiftScopeId = shift.scope_id || scopeId;
+    let scopeName = null;
+    if (shiftScopeId !== null && shiftScopeId !== undefined && shiftScopeId !== '') {
+      if (shiftScopeType === 'BRANCH') {
+        const branchRows = await executeQuery('SELECT name FROM branches WHERE id = ?', [shiftScopeId]);
+        scopeName = branchRows[0]?.name || null;
+      } else if (shiftScopeType === 'WAREHOUSE') {
+        const warehouseRows = await executeQuery('SELECT name FROM warehouses WHERE id = ?', [shiftScopeId]);
+        scopeName = warehouseRows[0]?.name || null;
+      }
+    }
+
+    const previousSessions = await executeQuery(`
+      SELECT ss.id, ss.final_cash, ss.actual_end_time
+      FROM shift_sessions ss
+      JOIN shifts s ON s.id = ss.shift_id
+      WHERE ss.status = 'ENDED'
+        AND ss.final_cash IS NOT NULL
+        AND s.scope_type = ?
+        AND (s.scope_id = ? OR s.scope_id = ?)
+      ORDER BY ss.actual_end_time DESC, ss.id DESC
+      LIMIT 1
+    `, [shiftScopeType, shiftScopeId, scopeName || '']);
+
+    if (previousSessions.length > 0) {
+      const previousSession = previousSessions[0];
+      let approvedCashIn = 0;
+      let approvedCashOut = 0;
+
+      try {
+        const movementRows = await executeQuery(`
+          SELECT
+            COALESCE(SUM(CASE WHEN direction = 'IN' THEN amount ELSE 0 END), 0) AS cash_in,
+            COALESCE(SUM(CASE WHEN direction = 'OUT' THEN amount ELSE 0 END), 0) AS cash_out
+          FROM shift_cash_movements
+          WHERE status = 'APPROVED'
+            AND deleted_at IS NULL
+            AND scope_type = ?
+            AND (scope_id = ? OR scope_id = ?)
+            AND created_at > ?
+        `, [shiftScopeType, shiftScopeId, scopeName || '', previousSession.actual_end_time]);
+        approvedCashIn = roundMoney(movementRows[0]?.cash_in);
+        approvedCashOut = roundMoney(movementRows[0]?.cash_out);
+      } catch (error) {
+        if (!/ER_NO_SUCH_TABLE|doesn't exist|does not exist/i.test(error.message)) throw error;
+      }
+
+      const expectedOpening = roundMoney(Number(previousSession.final_cash) + approvedCashIn - approvedCashOut);
+      if (Math.abs(normalizedInitialCash - expectedOpening) > 0.01) {
+        return res.status(400).json({
+          success: false,
+          message: 'Opening cash must match the previous closing cash plus approved cash movements',
+          previous_session_id: previousSession.id,
+          previous_final_cash: roundMoney(previousSession.final_cash),
+          approved_cash_in: approvedCashIn,
+          approved_cash_out: approvedCashOut,
+          suggested_initial_cash: expectedOpening
+        });
+      }
+    }
+
     const sessionResult = await executeQuery(`
       INSERT INTO shift_sessions (shift_id, user_id, status, actual_start_time, initial_cash, total_sales)
       VALUES (?, ?, 'ACTIVE', NOW(), ?, 0.00)
-    `, [resolvedShiftId, userId, parseFloat(initialCash)]);
+    `, [resolvedShiftId, userId, normalizedInitialCash]);
 
     const sessionId = sessionResult.insertId;
 
@@ -474,8 +545,8 @@ const endShift = async (req, res, next) => {
       WHERE s.user_id = ?
         AND s.status = 'COMPLETED'
         AND s.deleted_at IS NULL
-        AND (s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND'))
-        AND (s.payment_method IS NULL OR s.payment_method NOT IN ('REFUND'))
+        AND (s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND', 'CASH_REFUND', 'CREDIT_REFUND_SETTLEMENT'))
+        AND (s.payment_method IS NULL OR s.payment_method NOT IN ('REFUND', 'CASH_REFUND'))
         AND s.invoice_no NOT LIKE 'RET-%'
         AND s.created_at BETWEEN ? AND ?
     `, [userId, startTime, endTime]);
@@ -901,6 +972,8 @@ const getShiftSessionsReport = async (req, res, next) => {
       sessions: 0,
       initial_cash: 0,
       cash_sales: 0,
+      cash_in_movements: 0,
+      cash_out_movements: 0,
       cash_expenses: 0,
       total_sales: 0,
       final_cash: 0,
@@ -995,6 +1068,8 @@ const getShiftSessionsReport = async (req, res, next) => {
           initial_cash: 0,
           cash_sales: 0,
           cash_refunds: 0,
+          cash_in_movements: 0,
+          cash_out_movements: 0,
           cash_expenses: 0,
           total_sales: 0,
           final_cash: 0,
@@ -1010,26 +1085,27 @@ const getShiftSessionsReport = async (req, res, next) => {
       SELECT
         ss.id AS session_id,
         COALESCE(SUM(CASE WHEN s.id IS NOT NULL
-          AND (s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND'))
-          AND (s.payment_method IS NULL OR s.payment_method NOT IN ('REFUND'))
+          AND (s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND', 'CASH_REFUND', 'CREDIT_REFUND_SETTLEMENT'))
+          AND (s.payment_method IS NULL OR s.payment_method NOT IN ('REFUND', 'CASH_REFUND'))
           AND s.invoice_no NOT LIKE 'RET-%' THEN 1 ELSE 0 END), 0) AS bill_count,
-        COALESCE(SUM(CASE WHEN (s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND'))
-          AND (s.payment_method IS NULL OR s.payment_method NOT IN ('REFUND'))
+        COALESCE(SUM(CASE WHEN (s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND', 'CASH_REFUND', 'CREDIT_REFUND_SETTLEMENT'))
+          AND (s.payment_method IS NULL OR s.payment_method NOT IN ('REFUND', 'CASH_REFUND'))
           AND s.invoice_no NOT LIKE 'RET-%' THEN s.total ELSE 0 END), 0) AS total_sales,
         COALESCE(SUM(CASE WHEN s.payment_method = 'CASH'
-          AND (s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND'))
+          AND (s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND', 'CASH_REFUND', 'CREDIT_REFUND_SETTLEMENT'))
           AND s.invoice_no NOT LIKE 'RET-%' THEN s.total ELSE 0 END), 0) AS cash_sales,
         COALESCE(SUM(CASE WHEN s.payment_method IN ('REFUND', 'CASH_REFUND')
-                            OR s.payment_type IN ('REFUND', 'CASH_REFUND')
+                            OR s.payment_type IN ('REFUND', 'CASH_REFUND', 'CREDIT_REFUND_SETTLEMENT')
+                            OR s.invoice_no LIKE 'RET-%'
                           THEN s.total ELSE 0 END), 0) AS cash_refunds,
         COALESCE(SUM(CASE WHEN s.payment_method = 'CARD'
-          AND (s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND'))
+          AND (s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND', 'CASH_REFUND', 'CREDIT_REFUND_SETTLEMENT'))
           AND s.invoice_no NOT LIKE 'RET-%' THEN s.total ELSE 0 END), 0) AS card_sales,
         COALESCE(SUM(CASE WHEN s.payment_method = 'MOBILE_PAYMENT'
-          AND (s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND'))
+          AND (s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND', 'CASH_REFUND', 'CREDIT_REFUND_SETTLEMENT'))
           AND s.invoice_no NOT LIKE 'RET-%' THEN s.total ELSE 0 END), 0) AS mobile_sales,
         COALESCE(SUM(CASE WHEN s.payment_method = 'FULLY_CREDIT'
-          AND (s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND'))
+          AND (s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND', 'CASH_REFUND', 'CREDIT_REFUND_SETTLEMENT'))
           AND s.invoice_no NOT LIKE 'RET-%' THEN s.total ELSE 0 END), 0) AS credit_sales
       FROM shift_sessions ss
       INNER JOIN shifts sh ON sh.id = ss.shift_id
@@ -1082,6 +1158,41 @@ const getShiftSessionsReport = async (req, res, next) => {
       GROUP BY ss.id
     `, ids);
 
+    let movementRows = [];
+    try {
+      movementRows = await executeQuery(`
+        SELECT ss.id AS session_id,
+          COALESCE(SUM(CASE WHEN cm.direction = 'IN' THEN cm.amount ELSE 0 END), 0) AS cash_in_movements,
+          COALESCE(SUM(CASE WHEN cm.direction = 'OUT' THEN cm.amount ELSE 0 END), 0) AS cash_out_movements
+        FROM shift_sessions ss
+        JOIN shifts sh ON sh.id = ss.shift_id
+        LEFT JOIN shift_cash_movements cm
+          ON cm.status = 'APPROVED'
+         AND cm.deleted_at IS NULL
+         AND (
+           cm.shift_session_id = ss.id
+           OR (
+             cm.shift_session_id IS NULL
+             AND cm.scope_type = sh.scope_type
+             AND (cm.scope_id = sh.scope_id OR cm.scope_id = COALESCE(
+               CASE sh.scope_type
+                 WHEN 'BRANCH' THEN (SELECT b.name FROM branches b WHERE b.id = sh.scope_id LIMIT 1)
+                 WHEN 'WAREHOUSE' THEN (SELECT w.name FROM warehouses w WHERE w.id = sh.scope_id LIMIT 1)
+                 ELSE NULL
+               END, ''
+             ))
+             AND cm.user_id = ss.user_id
+             AND cm.created_at >= ss.actual_start_time + INTERVAL (5 - TIMESTAMPDIFF(HOUR, UTC_TIMESTAMP(), NOW())) HOUR
+             AND cm.created_at <= COALESCE(ss.actual_end_time + INTERVAL (5 - TIMESTAMPDIFF(HOUR, UTC_TIMESTAMP(), NOW())) HOUR, UTC_TIMESTAMP() + INTERVAL 5 HOUR)
+           )
+         )
+        WHERE ss.id IN (${placeholders})
+        GROUP BY ss.id
+      `, ids);
+    } catch (error) {
+      if (!/ER_NO_SUCH_TABLE|doesn't exist|does not exist/i.test(error.message)) throw error;
+    }
+
     const salesBySession = {};
     salesRows.forEach((row) => {
       salesBySession[String(row.session_id)] = row;
@@ -1090,18 +1201,25 @@ const getShiftSessionsReport = async (req, res, next) => {
     expenseRows.forEach((row) => {
       expensesBySession[String(row.session_id)] = row;
     });
+    const movementsBySession = {};
+    movementRows.forEach((row) => {
+      movementsBySession[String(row.session_id)] = row;
+    });
 
     const data = sessions.map((session) => {
       const agg = salesBySession[String(session.id)] || {};
       const expenseAgg = expensesBySession[String(session.id)] || {};
-      const initialCash = Number(session.initial_cash) || 0;
-      const cashSales = Number(agg.cash_sales) || 0;
-      const cashRefunds = Number(agg.cash_refunds) || 0;
-      const cashExpenses = Number(expenseAgg.cash_expenses) || 0;
+      const movementAgg = movementsBySession[String(session.id)] || {};
+      const initialCash = roundMoney(session.initial_cash);
+      const cashSales = roundMoney(agg.cash_sales);
+      const cashRefunds = roundMoney(agg.cash_refunds);
+      const cashInMovements = roundMoney(movementAgg.cash_in_movements);
+      const cashOutMovements = roundMoney(movementAgg.cash_out_movements);
+      const cashExpenses = roundMoney(expenseAgg.cash_expenses);
       const finalCash = session.final_cash === null || session.final_cash === undefined
         ? null
         : Number(session.final_cash);
-      const expectedCash = initialCash + cashSales + cashRefunds - cashExpenses;
+      const expectedCash = roundMoney(initialCash + cashSales + cashRefunds + cashInMovements - cashOutMovements - cashExpenses);
 
       return {
         ...session,
@@ -1111,6 +1229,8 @@ const getShiftSessionsReport = async (req, res, next) => {
         total_sales: Number(agg.total_sales) || 0,
         cash_sales: cashSales,
         cash_refunds: cashRefunds,
+        cash_in_movements: cashInMovements,
+        cash_out_movements: cashOutMovements,
         cash_expenses: cashExpenses,
         card_sales: Number(agg.card_sales) || 0,
         mobile_sales: Number(agg.mobile_sales) || 0,
@@ -1125,6 +1245,8 @@ const getShiftSessionsReport = async (req, res, next) => {
       acc.initial_cash += row.initial_cash;
       acc.cash_sales += row.cash_sales;
       acc.cash_refunds += row.cash_refunds;
+      acc.cash_in_movements += row.cash_in_movements;
+      acc.cash_out_movements += row.cash_out_movements;
       acc.cash_expenses += row.cash_expenses;
       acc.total_sales += row.total_sales;
       acc.final_cash += row.final_cash || 0;
@@ -1136,6 +1258,8 @@ const getShiftSessionsReport = async (req, res, next) => {
       initial_cash: 0,
       cash_sales: 0,
       cash_refunds: 0,
+      cash_in_movements: 0,
+      cash_out_movements: 0,
       cash_expenses: 0,
       total_sales: 0,
       final_cash: 0,
@@ -1248,6 +1372,166 @@ const updateShiftSessionCash = async (req, res, next) => {
   }
 };
 
+const createCashMovement = async (req, res, next) => {
+  try {
+    const {
+      shiftSessionId,
+      direction,
+      amount,
+      reason,
+      reference,
+      scopeType,
+      scopeId,
+      userId,
+    } = req.body;
+    const normalizedDirection = String(direction || '').toUpperCase();
+    const normalizedAmount = roundMoney(amount);
+    const normalizedReason = String(reason || '').trim();
+
+    if (!['IN', 'OUT'].includes(normalizedDirection)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Direction must be IN or OUT',
+      });
+    }
+    if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Amount must be greater than zero',
+      });
+    }
+    if (!normalizedReason) {
+      return res.status(400).json({
+        success: false,
+        message: 'Reason is required',
+      });
+    }
+
+    const effectiveScopeType = ['BRANCH', 'WAREHOUSE'].includes(scopeType)
+      ? scopeType
+      : (req.user.warehouseId ? 'WAREHOUSE' : 'BRANCH');
+    const effectiveScopeId = scopeId || req.user.warehouseId || req.user.branchId;
+    const effectiveUserId = userId || req.user.id;
+
+    if (!effectiveScopeId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Unable to resolve the scope for this cash movement',
+      });
+    }
+
+    if (shiftSessionId !== undefined && shiftSessionId !== null && shiftSessionId !== '') {
+      const sessionRows = await executeQuery('SELECT id FROM shift_sessions WHERE id = ?', [shiftSessionId]);
+      if (sessionRows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: 'Shift session not found',
+        });
+      }
+    }
+
+    const result = await executeQuery(`
+      INSERT INTO shift_cash_movements (
+        shift_session_id, scope_type, scope_id, user_id, direction, amount,
+        reason, reference, status, created_by, approved_by, approved_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'APPROVED', ?, ?, NOW())
+    `, [
+      shiftSessionId || null,
+      effectiveScopeType,
+      String(effectiveScopeId),
+      effectiveUserId || null,
+      normalizedDirection,
+      normalizedAmount,
+      normalizedReason,
+      reference || null,
+      req.user.id,
+      req.user.id,
+    ]);
+
+    const [movement] = await executeQuery(`
+      SELECT cm.*, u.username AS user_name
+      FROM shift_cash_movements cm
+      LEFT JOIN users u ON u.id = cm.user_id
+      WHERE cm.id = ?
+    `, [result.insertId]);
+
+    return res.status(201).json({
+      success: true,
+      message: 'Cash movement recorded',
+      data: movement,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: 'Error recording cash movement',
+      error: error.message,
+    });
+  }
+};
+
+const getCashMovements = async (req, res, next) => {
+  try {
+    const { sessionId, scopeType, scopeId, userId, status, limit } = req.query;
+    const where = ['cm.deleted_at IS NULL'];
+    const params = [];
+
+    if (sessionId) {
+      where.push('cm.shift_session_id = ?');
+      params.push(sessionId);
+    }
+    if (scopeType) {
+      where.push('cm.scope_type = ?');
+      params.push(scopeType);
+    }
+    if (scopeId) {
+      where.push('cm.scope_id = ?');
+      params.push(scopeId);
+    }
+    if (userId) {
+      where.push('cm.user_id = ?');
+      params.push(userId);
+    } else if (req.user.role === 'CASHIER') {
+      where.push('cm.user_id = ?');
+      params.push(req.user.id);
+    }
+    if (status) {
+      where.push('cm.status = ?');
+      params.push(status);
+    }
+
+    const parsedLimit = parseInt(limit, 10);
+    const limitNum = Math.min(Math.max(Number.isFinite(parsedLimit) ? parsedLimit : 200, 1), 2000);
+    let rows = [];
+
+    try {
+      rows = await executeQuery(`
+        SELECT cm.*, u.username AS user_name, sh.name AS shift_name
+        FROM shift_cash_movements cm
+        LEFT JOIN users u ON u.id = cm.user_id
+        LEFT JOIN shift_sessions ss ON ss.id = cm.shift_session_id
+        LEFT JOIN shifts sh ON sh.id = ss.shift_id
+        WHERE ${where.join(' AND ')}
+        ORDER BY cm.created_at DESC, cm.id DESC
+        LIMIT ${limitNum}
+      `, params);
+    } catch (error) {
+      if (!/ER_NO_SUCH_TABLE|doesn't exist|does not exist/i.test(error.message)) throw error;
+    }
+
+    return res.json({
+      success: true,
+      count: rows.length,
+      data: rows,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: 'Error fetching cash movements',
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   getShifts,
   getShift,
@@ -1263,6 +1547,8 @@ module.exports = {
   getRecentShiftSessions,
   getShiftSessionsReport,
   updateShiftSessionCash,
+  createCashMovement,
+  getCashMovements,
   assignUserToShift,
   removeUserFromShift
 };

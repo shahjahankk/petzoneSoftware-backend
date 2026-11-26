@@ -721,6 +721,8 @@ const getSalesReturns = async (req, res, next) => {
           // ✅ Use calculated total refund (sum of items) instead of stored value
           total_refund: calculatedTotalRefund,
           totalRefund: calculatedTotalRefund, // Add camelCase for frontend compatibility
+          refund_amount: calculatedTotalRefund,
+          refundAmount: calculatedTotalRefund,
           customerName: returnRecord.customer_name || null,
           customerPhone: returnRecord.customer_phone || null,
           // Keep original stored value for reference
@@ -865,7 +867,8 @@ const getSalesReturn = async (req, res, next) => {
           
           // Reconstruct return items from original sale items
           // Use the total refund amount divided by number of items as a simple approximation
-          const refundPerItem = returnData.total_refund ? (parseFloat(returnData.total_refund) / originalSaleItems.length) : 0;
+          const storedRefund = returnData.refund_amount ?? returnData.total_refund;
+          const refundPerItem = storedRefund ? (parseFloat(storedRefund) / originalSaleItems.length) : 0;
           
           itemsToUse = originalSaleItems.map((saleItem, index) => ({
             id: null, // No actual return item ID
@@ -934,6 +937,8 @@ const getSalesReturn = async (req, res, next) => {
       // ✅ Use calculated total refund (sum of all items) instead of stored value
       total_refund: calculatedTotalRefund,
       totalRefund: calculatedTotalRefund, // Add camelCase for frontend compatibility
+      refund_amount: calculatedTotalRefund,
+      refundAmount: calculatedTotalRefund,
       customerName: returnData.customer_name || null,
       customerPhone: returnData.customer_phone || null,
       type: returnData.type || 'REFUND',
@@ -1223,10 +1228,10 @@ const updateSalesReturn = async (req, res, next) => {
     const nextNotes = notes === undefined ? existingReturn.notes : notes;
     await connection.execute(
       `UPDATE sales_returns
-       SET reason = ?, notes = ?, total_refund = ?, status = ?,
+       SET reason = ?, notes = ?, total_refund = ?, refund_amount = ?, status = ?,
            processed_by = COALESCE(?, processed_by), approved_by = COALESCE(?, approved_by), updated_at = NOW()
        WHERE id = ?`,
-      [nextReason, nextNotes, totalRefund, nextStatus, processedBy ?? null, approvedBy ?? null, id]
+      [nextReason, nextNotes, totalRefund, totalRefund, nextStatus, processedBy ?? null, approvedBy ?? null, id]
     );
 
     const refundSale = refundSales[0];

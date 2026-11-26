@@ -536,11 +536,15 @@ const endShift = async (req, res, next) => {
         COALESCE(SUM(s.subtotal), 0) AS total_subtotal,
         COALESCE(SUM(s.tax), 0) AS total_tax,
         COALESCE(SUM(s.discount), 0) AS total_discount,
-        COALESCE(SUM(CASE WHEN s.payment_method = 'CASH' THEN s.total ELSE 0 END), 0) AS cash_sales,
-        COALESCE(SUM(CASE WHEN s.payment_method = 'CARD' THEN s.total ELSE 0 END), 0) AS card_sales,
-        COALESCE(SUM(CASE WHEN s.payment_method = 'MOBILE_PAYMENT' THEN s.total ELSE 0 END), 0) AS mobile_sales,
+        COALESCE(SUM(CASE WHEN s.payment_method = 'CASH'
+          AND (s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND','CASH_REFUND','CREDIT_REFUND_SETTLEMENT','OUTSTANDING_SETTLEMENT'))
+          THEN s.payment_amount ELSE 0 END), 0) AS cash_sales,
+        COALESCE(SUM(CASE WHEN s.payment_method = 'CARD' THEN s.payment_amount ELSE 0 END), 0) AS card_sales,
+        COALESCE(SUM(CASE WHEN s.payment_method = 'MOBILE_PAYMENT' THEN s.payment_amount ELSE 0 END), 0) AS mobile_sales,
         COALESCE(SUM(CASE WHEN s.payment_method = 'FULLY_CREDIT' THEN s.total ELSE 0 END), 0) AS credit_sales,
-        COALESCE(SUM(CASE WHEN s.payment_type = 'OUTSTANDING_SETTLEMENT' THEN s.payment_amount ELSE 0 END), 0) AS settlements
+        COALESCE(SUM(CASE WHEN s.payment_type = 'OUTSTANDING_SETTLEMENT' THEN s.payment_amount ELSE 0 END), 0) AS settlements,
+        COALESCE(SUM(CASE WHEN s.payment_method = 'CASH' AND s.payment_type = 'OUTSTANDING_SETTLEMENT'
+          THEN s.payment_amount ELSE 0 END), 0) AS cash_settlements
       FROM sales s
       WHERE s.user_id = ?
         AND s.status = 'COMPLETED'
@@ -591,6 +595,7 @@ const endShift = async (req, res, next) => {
       mobile_sales: Number(summary.mobile_sales) || 0,
       credit_sales: Number(summary.credit_sales) || 0,
       settlements: Number(summary.settlements) || 0,
+      cash_settlements: Number(summary.cash_settlements) || 0,
     };
 
     // End the shift session
@@ -1067,6 +1072,13 @@ const getShiftSessionsReport = async (req, res, next) => {
           sessions: 0,
           initial_cash: 0,
           cash_sales: 0,
+          cash_settlements: 0,
+          partial_cash: 0,
+          card_sales: 0,
+          mobile_sales: 0,
+          credit_sales: 0,
+          partial_credit: 0,
+          discount: 0,
           cash_refunds: 0,
           cash_in_movements: 0,
           cash_out_movements: 0,
@@ -1085,25 +1097,37 @@ const getShiftSessionsReport = async (req, res, next) => {
       SELECT
         ss.id AS session_id,
         COALESCE(SUM(CASE WHEN s.id IS NOT NULL
-          AND (s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND', 'CASH_REFUND', 'CREDIT_REFUND_SETTLEMENT'))
+          AND (s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND', 'CASH_REFUND', 'CREDIT_REFUND_SETTLEMENT', 'OUTSTANDING_SETTLEMENT'))
           AND (s.payment_method IS NULL OR s.payment_method NOT IN ('REFUND', 'CASH_REFUND'))
           AND s.invoice_no NOT LIKE 'RET-%' THEN 1 ELSE 0 END), 0) AS bill_count,
-        COALESCE(SUM(CASE WHEN (s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND', 'CASH_REFUND', 'CREDIT_REFUND_SETTLEMENT'))
+        COALESCE(SUM(CASE WHEN (s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND', 'CASH_REFUND', 'CREDIT_REFUND_SETTLEMENT', 'OUTSTANDING_SETTLEMENT'))
           AND (s.payment_method IS NULL OR s.payment_method NOT IN ('REFUND', 'CASH_REFUND'))
           AND s.invoice_no NOT LIKE 'RET-%' THEN s.total ELSE 0 END), 0) AS total_sales,
         COALESCE(SUM(CASE WHEN s.payment_method = 'CASH'
-          AND (s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND', 'CASH_REFUND', 'CREDIT_REFUND_SETTLEMENT'))
-          AND s.invoice_no NOT LIKE 'RET-%' THEN s.total ELSE 0 END), 0) AS cash_sales,
+          AND (s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND', 'CASH_REFUND', 'CREDIT_REFUND_SETTLEMENT', 'OUTSTANDING_SETTLEMENT'))
+          AND s.invoice_no NOT LIKE 'RET-%' THEN s.payment_amount ELSE 0 END), 0) AS cash_sales,
+        COALESCE(SUM(CASE WHEN s.payment_method = 'CASH'
+          AND s.payment_type = 'OUTSTANDING_SETTLEMENT'
+          AND s.invoice_no NOT LIKE 'RET-%' THEN s.payment_amount ELSE 0 END), 0) AS cash_settlements,
+        COALESCE(SUM(CASE WHEN s.payment_method = 'CASH'
+          AND s.payment_type = 'PARTIAL_PAYMENT'
+          AND s.invoice_no NOT LIKE 'RET-%' THEN s.payment_amount ELSE 0 END), 0) AS partial_cash,
+        COALESCE(SUM(CASE WHEN s.payment_method = 'CASH'
+          AND s.payment_type = 'PARTIAL_PAYMENT'
+          AND s.invoice_no NOT LIKE 'RET-%' THEN s.total - s.payment_amount ELSE 0 END), 0) AS partial_credit,
+        COALESCE(SUM(CASE WHEN (s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND', 'CASH_REFUND', 'CREDIT_REFUND_SETTLEMENT', 'OUTSTANDING_SETTLEMENT'))
+          AND (s.payment_method IS NULL OR s.payment_method NOT IN ('REFUND', 'CASH_REFUND'))
+          AND s.invoice_no NOT LIKE 'RET-%' THEN s.discount ELSE 0 END), 0) AS discount,
         COALESCE(SUM(CASE WHEN s.payment_method IN ('REFUND', 'CASH_REFUND')
                             OR s.payment_type IN ('REFUND', 'CASH_REFUND', 'CREDIT_REFUND_SETTLEMENT')
                             OR s.invoice_no LIKE 'RET-%'
-                          THEN s.total ELSE 0 END), 0) AS cash_refunds,
+                          THEN CASE WHEN COALESCE(s.payment_amount, 0) = 0 THEN s.total ELSE s.payment_amount END ELSE 0 END), 0) AS cash_refunds,
         COALESCE(SUM(CASE WHEN s.payment_method = 'CARD'
-          AND (s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND', 'CASH_REFUND', 'CREDIT_REFUND_SETTLEMENT'))
-          AND s.invoice_no NOT LIKE 'RET-%' THEN s.total ELSE 0 END), 0) AS card_sales,
+          AND (s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND', 'CASH_REFUND', 'CREDIT_REFUND_SETTLEMENT', 'OUTSTANDING_SETTLEMENT'))
+          AND s.invoice_no NOT LIKE 'RET-%' THEN s.payment_amount ELSE 0 END), 0) AS card_sales,
         COALESCE(SUM(CASE WHEN s.payment_method = 'MOBILE_PAYMENT'
-          AND (s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND', 'CASH_REFUND', 'CREDIT_REFUND_SETTLEMENT'))
-          AND s.invoice_no NOT LIKE 'RET-%' THEN s.total ELSE 0 END), 0) AS mobile_sales,
+          AND (s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND', 'CASH_REFUND', 'CREDIT_REFUND_SETTLEMENT', 'OUTSTANDING_SETTLEMENT'))
+          AND s.invoice_no NOT LIKE 'RET-%' THEN s.payment_amount ELSE 0 END), 0) AS mobile_sales,
         COALESCE(SUM(CASE WHEN s.payment_method = 'FULLY_CREDIT'
           AND (s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND', 'CASH_REFUND', 'CREDIT_REFUND_SETTLEMENT'))
           AND s.invoice_no NOT LIKE 'RET-%' THEN s.total ELSE 0 END), 0) AS credit_sales
@@ -1212,6 +1236,7 @@ const getShiftSessionsReport = async (req, res, next) => {
       const movementAgg = movementsBySession[String(session.id)] || {};
       const initialCash = roundMoney(session.initial_cash);
       const cashSales = roundMoney(agg.cash_sales);
+      const cashSettlements = roundMoney(agg.cash_settlements);
       const cashRefunds = roundMoney(agg.cash_refunds);
       const cashInMovements = roundMoney(movementAgg.cash_in_movements);
       const cashOutMovements = roundMoney(movementAgg.cash_out_movements);
@@ -1219,7 +1244,7 @@ const getShiftSessionsReport = async (req, res, next) => {
       const finalCash = session.final_cash === null || session.final_cash === undefined
         ? null
         : Number(session.final_cash);
-      const expectedCash = roundMoney(initialCash + cashSales + cashRefunds + cashInMovements - cashOutMovements - cashExpenses);
+      const expectedCash = roundMoney(initialCash + cashSales + cashSettlements + cashRefunds + cashInMovements - cashOutMovements - cashExpenses);
 
       return {
         ...session,
@@ -1228,6 +1253,10 @@ const getShiftSessionsReport = async (req, res, next) => {
         bill_count: Number(agg.bill_count) || 0,
         total_sales: Number(agg.total_sales) || 0,
         cash_sales: cashSales,
+        cash_settlements: cashSettlements,
+        partial_cash: roundMoney(agg.partial_cash),
+        partial_credit: roundMoney(agg.partial_credit),
+        discount: roundMoney(agg.discount),
         cash_refunds: cashRefunds,
         cash_in_movements: cashInMovements,
         cash_out_movements: cashOutMovements,
@@ -1244,10 +1273,17 @@ const getShiftSessionsReport = async (req, res, next) => {
       acc.sessions += 1;
       acc.initial_cash += row.initial_cash;
       acc.cash_sales += row.cash_sales;
+      acc.cash_settlements += row.cash_settlements;
+      acc.partial_cash += row.partial_cash;
+      acc.partial_credit += row.partial_credit;
+      acc.discount += row.discount;
       acc.cash_refunds += row.cash_refunds;
       acc.cash_in_movements += row.cash_in_movements;
       acc.cash_out_movements += row.cash_out_movements;
       acc.cash_expenses += row.cash_expenses;
+      acc.card_sales += row.card_sales;
+      acc.mobile_sales += row.mobile_sales;
+      acc.credit_sales += row.credit_sales;
       acc.total_sales += row.total_sales;
       acc.final_cash += row.final_cash || 0;
       acc.expected_cash += row.expected_cash;
@@ -1257,10 +1293,17 @@ const getShiftSessionsReport = async (req, res, next) => {
       sessions: 0,
       initial_cash: 0,
       cash_sales: 0,
+      cash_settlements: 0,
+      partial_cash: 0,
+      partial_credit: 0,
+      discount: 0,
       cash_refunds: 0,
       cash_in_movements: 0,
       cash_out_movements: 0,
       cash_expenses: 0,
+      card_sales: 0,
+      mobile_sales: 0,
+      credit_sales: 0,
       total_sales: 0,
       final_cash: 0,
       expected_cash: 0,

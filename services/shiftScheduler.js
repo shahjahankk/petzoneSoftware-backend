@@ -19,15 +19,18 @@ async function getSalesTotals(sessionId) {
   const rows = await executeQuery(`
     SELECT
       COALESCE(SUM(CASE WHEN s.id IS NOT NULL
-        AND (s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND', 'CASH_REFUND', 'CREDIT_REFUND_SETTLEMENT'))
+        AND (s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND', 'CASH_REFUND', 'CREDIT_REFUND_SETTLEMENT', 'OUTSTANDING_SETTLEMENT'))
         AND (s.payment_method IS NULL OR s.payment_method NOT IN ('REFUND', 'CASH_REFUND'))
         AND s.invoice_no NOT LIKE 'RET-%' THEN s.total ELSE 0 END), 0) AS total_sales,
       COALESCE(SUM(CASE WHEN s.payment_method = 'CASH'
-        AND (s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND', 'CASH_REFUND', 'CREDIT_REFUND_SETTLEMENT'))
-        AND s.invoice_no NOT LIKE 'RET-%' THEN s.total ELSE 0 END), 0) AS cash_sales,
+        AND (s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND', 'CASH_REFUND', 'CREDIT_REFUND_SETTLEMENT', 'OUTSTANDING_SETTLEMENT'))
+        AND s.invoice_no NOT LIKE 'RET-%' THEN s.payment_amount ELSE 0 END), 0) AS cash_sales,
+      COALESCE(SUM(CASE WHEN s.payment_method = 'CASH'
+        AND s.payment_type = 'OUTSTANDING_SETTLEMENT'
+        AND s.invoice_no NOT LIKE 'RET-%' THEN s.payment_amount ELSE 0 END), 0) AS cash_settlements,
       COALESCE(SUM(CASE WHEN s.payment_method IN ('REFUND', 'CASH_REFUND')
         OR s.payment_type IN ('REFUND', 'CASH_REFUND', 'CREDIT_REFUND_SETTLEMENT')
-        OR s.invoice_no LIKE 'RET-%' THEN s.total ELSE 0 END), 0) AS cash_refunds
+        OR s.invoice_no LIKE 'RET-%' THEN CASE WHEN COALESCE(s.payment_amount, 0) = 0 THEN s.total ELSE s.payment_amount END ELSE 0 END), 0) AS cash_refunds
     FROM shift_sessions ss
     JOIN shifts sh ON sh.id = ss.shift_id
     LEFT JOIN sales s
@@ -128,6 +131,7 @@ async function closeSessionWithSummary(session) {
   const finalCash = roundMoney(
     Number(session.initial_cash) +
     Number(sales.cash_sales) +
+    Number(sales.cash_settlements) +
     Number(sales.cash_refunds) +
     Number(movements.cash_in) -
     Number(movements.cash_out) -

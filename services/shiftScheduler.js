@@ -1,65 +1,176 @@
-/**
- * Shift auto-close scheduler.
- *
- * Every minute, checks whether it is past midnight (00:00) relative to the
- * last run. Any shift_sessions still ACTIVE at midnight are closed out
- * automatically so a cashier who forgets to close does not leave an open
- * shift carrying into the next business day.
- *
- * A session is considered "already closed for today" if its actual_end_time
- * falls on the same calendar date as the midnight boundary we just passed,
- * so a cashier who re-opens on the same day after an auto-close gets a fresh
- * session (start-shift already blocks duplicate ACTIVE sessions per user).
- */
-
 const { executeQuery } = require('../config/database');
 
-let lastMidnightProcessed = null; // YYYY-MM-DD of the last midnight we closed
+const PK_OFFSET_MS = 5 * 60 * 60 * 1000;
+const TIME_OFFSET_SQL = "INTERVAL (5 - TIMESTAMPDIFF(HOUR, UTC_TIMESTAMP(), NOW())) HOUR";
 
-function isPastMidnight() {
-  const now = new Date();
-  const today = now.toISOString().slice(0, 10); // YYYY-MM-DD in local TZ
-  return today !== lastMidnightProcessed;
+let lastAutoCloseDate = null;
+
+const roundMoney = (value) => Math.round((Number(value) || 0) * 100) / 100;
+
+const getPkNow = () => {
+  const shifted = new Date(Date.now() + PK_OFFSET_MS);
+  return {
+    dateKey: shifted.toISOString().slice(0, 10),
+    hour: shifted.getUTCHours(),
+  };
+};
+
+async function getSalesTotals(sessionId) {
+  const rows = await executeQuery(`
+    SELECT
+      COALESCE(SUM(CASE WHEN s.id IS NOT NULL
+        AND (s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND', 'CASH_REFUND', 'CREDIT_REFUND_SETTLEMENT'))
+        AND (s.payment_method IS NULL OR s.payment_method NOT IN ('REFUND', 'CASH_REFUND'))
+        AND s.invoice_no NOT LIKE 'RET-%' THEN s.total ELSE 0 END), 0) AS total_sales,
+      COALESCE(SUM(CASE WHEN s.payment_method = 'CASH'
+        AND (s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND', 'CASH_REFUND', 'CREDIT_REFUND_SETTLEMENT'))
+        AND s.invoice_no NOT LIKE 'RET-%' THEN s.total ELSE 0 END), 0) AS cash_sales,
+      COALESCE(SUM(CASE WHEN s.payment_method IN ('REFUND', 'CASH_REFUND')
+        OR s.payment_type IN ('REFUND', 'CASH_REFUND', 'CREDIT_REFUND_SETTLEMENT')
+        OR s.invoice_no LIKE 'RET-%' THEN s.total ELSE 0 END), 0) AS cash_refunds
+    FROM shift_sessions ss
+    JOIN shifts sh ON sh.id = ss.shift_id
+    LEFT JOIN sales s
+      ON s.user_id = ss.user_id
+     AND s.scope_type = sh.scope_type
+     AND (
+       s.scope_id = sh.scope_id
+       OR s.scope_id = COALESCE(
+         CASE sh.scope_type
+           WHEN 'BRANCH' THEN (SELECT b.name FROM branches b WHERE b.id = sh.scope_id LIMIT 1)
+           WHEN 'WAREHOUSE' THEN (SELECT w.name FROM warehouses w WHERE w.id = sh.scope_id LIMIT 1)
+           ELSE NULL
+         END, ''
+       )
+     )
+     AND s.status = 'COMPLETED'
+     AND s.deleted_at IS NULL
+     AND s.created_at >= ss.actual_start_time + ${TIME_OFFSET_SQL}
+     AND s.created_at <= COALESCE(ss.actual_end_time + ${TIME_OFFSET_SQL}, UTC_TIMESTAMP() + INTERVAL 5 HOUR)
+    WHERE ss.id = ?
+  `, [sessionId]);
+  return rows[0] || {};
+}
+
+async function getExpenseTotals(sessionId) {
+  const rows = await executeQuery(`
+    SELECT COALESCE(SUM(fv.amount), 0) AS cash_expenses
+    FROM shift_sessions ss
+    JOIN shifts sh ON sh.id = ss.shift_id
+    LEFT JOIN financial_vouchers fv
+      ON fv.scope_type = sh.scope_type
+     AND (
+       fv.scope_id = sh.scope_id
+       OR fv.scope_id = COALESCE(
+         CASE sh.scope_type
+           WHEN 'BRANCH' THEN (SELECT b.name FROM branches b WHERE b.id = sh.scope_id LIMIT 1)
+           WHEN 'WAREHOUSE' THEN (SELECT w.name FROM warehouses w WHERE w.id = sh.scope_id LIMIT 1)
+           ELSE NULL
+         END, ''
+       )
+     )
+     AND fv.user_id = ss.user_id
+     AND fv.type = 'EXPENSE'
+     AND fv.payment_method = 'CASH'
+     AND fv.status = 'APPROVED'
+     AND fv.deleted_at IS NULL
+     AND fv.created_at >= ss.actual_start_time + ${TIME_OFFSET_SQL}
+     AND fv.created_at <= COALESCE(ss.actual_end_time + ${TIME_OFFSET_SQL}, UTC_TIMESTAMP() + INTERVAL 5 HOUR)
+    WHERE ss.id = ?
+  `, [sessionId]);
+  return rows[0] || {};
+}
+
+async function getMovementTotals(sessionId) {
+  try {
+    const rows = await executeQuery(`
+      SELECT
+        COALESCE(SUM(CASE WHEN cm.direction = 'IN' THEN cm.amount ELSE 0 END), 0) AS cash_in,
+        COALESCE(SUM(CASE WHEN cm.direction = 'OUT' THEN cm.amount ELSE 0 END), 0) AS cash_out
+      FROM shift_sessions ss
+      JOIN shifts sh ON sh.id = ss.shift_id
+      LEFT JOIN shift_cash_movements cm
+        ON cm.status = 'APPROVED'
+       AND cm.deleted_at IS NULL
+       AND (
+         cm.shift_session_id = ss.id
+         OR (
+           cm.shift_session_id IS NULL
+           AND cm.scope_type = sh.scope_type
+           AND (cm.scope_id = sh.scope_id OR cm.scope_id = COALESCE(
+             CASE sh.scope_type
+               WHEN 'BRANCH' THEN (SELECT b.name FROM branches b WHERE b.id = sh.scope_id LIMIT 1)
+               WHEN 'WAREHOUSE' THEN (SELECT w.name FROM warehouses w WHERE w.id = sh.scope_id LIMIT 1)
+               ELSE NULL
+             END, ''
+           ))
+           AND cm.user_id = ss.user_id
+           AND cm.created_at >= ss.actual_start_time + ${TIME_OFFSET_SQL}
+           AND cm.created_at <= COALESCE(ss.actual_end_time + ${TIME_OFFSET_SQL}, UTC_TIMESTAMP() + INTERVAL 5 HOUR)
+         )
+       )
+      WHERE ss.id = ?
+    `, [sessionId]);
+    return rows[0] || {};
+  } catch (error) {
+    if (!/ER_NO_SUCH_TABLE|doesn't exist|does not exist/i.test(error.message)) throw error;
+    return {};
+  }
+}
+
+async function closeSessionWithSummary(session) {
+  const [sales, expenses, movements] = await Promise.all([
+    getSalesTotals(session.id),
+    getExpenseTotals(session.id),
+    getMovementTotals(session.id),
+  ]);
+
+  const finalCash = roundMoney(
+    Number(session.initial_cash) +
+    Number(sales.cash_sales) +
+    Number(sales.cash_refunds) +
+    Number(movements.cash_in) -
+    Number(movements.cash_out) -
+    Number(expenses.cash_expenses)
+  );
+
+  await executeQuery(`
+    UPDATE shift_sessions
+       SET status = 'ENDED', actual_end_time = NOW(), final_cash = ?, total_sales = ?, updated_at = NOW()
+     WHERE id = ? AND actual_end_time IS NULL
+  `, [finalCash, roundMoney(sales.total_sales), session.id]);
+
+  return finalCash;
 }
 
 async function closeShiftsAtMidnight() {
   try {
-    const now = new Date();
-    // Only act once per calendar day, at/after 00:00
-    if (now.getHours() !== 0 || !isPastMidnight()) return;
+    const pk = getPkNow();
+    if (pk.hour < 1 || lastAutoCloseDate === pk.dateKey) return;
 
-    const dateKey = now.toISOString().slice(0, 10);
-
-    const activeSessions = await executeQuery(
-      `SELECT id, user_id, actual_start_time
-         FROM shift_sessions
-        WHERE status = 'ACTIVE'
-          AND actual_end_time IS NULL`
-    );
+    const activeSessions = await executeQuery(`
+      SELECT ss.id, ss.user_id, ss.initial_cash, ss.actual_start_time
+      FROM shift_sessions ss
+      WHERE ss.status = 'ACTIVE'
+        AND ss.actual_end_time IS NULL
+        AND DATE(CONVERT_TZ(ss.actual_start_time, '+00:00', '+05:00')) < ?
+    `, [pk.dateKey]);
 
     if (activeSessions.length > 0) {
-      for (const s of activeSessions) {
-        await executeQuery(
-          `UPDATE shift_sessions
-             SET status = 'ENDED', actual_end_time = NOW()
-           WHERE id = ? AND actual_end_time IS NULL`,
-          [s.id]
-        );
+      for (const session of activeSessions) {
+        await closeSessionWithSummary(session);
       }
-      console.log(`[shiftScheduler] Auto-closed ${activeSessions.length} shift session(s) at midnight ${dateKey}`);
+      console.log(`[shiftScheduler] Auto-closed ${activeSessions.length} shift session(s) for PK date ${pk.dateKey}`);
     }
 
-    lastMidnightProcessed = dateKey;
+    lastAutoCloseDate = pk.dateKey;
   } catch (error) {
     console.error('[shiftScheduler] Midnight auto-close failed:', error.message);
   }
 }
 
 function startShiftScheduler() {
-  // Run immediately on startup (in case the server restarted after midnight)
   closeShiftsAtMidnight().catch(() => {});
-
-  // Poll every minute
   setInterval(closeShiftsAtMidnight, 60 * 1000);
 }
 

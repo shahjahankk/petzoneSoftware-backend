@@ -310,7 +310,7 @@ const startShift = async (req, res, next) => {
 
     let shift = null;
 
-    if (shiftId !== undefined && shiftId !== null && shiftId !== '') {
+    if (shiftId !== undefined && shiftId !== null && shiftId !== '' && /^\d+$/.test(String(shiftId))) {
       const byId = await executeQuery('SELECT * FROM shifts WHERE id = ?', [shiftId]);
       if (byId.length > 0) shift = byId[0];
     }
@@ -337,7 +337,7 @@ const startShift = async (req, res, next) => {
 
     // Still nothing? Create a shift for this user's assignment so a session
     // can always be started for a valid cashier/warehouse keeper.
-    if (!shift && req.user.shift) {
+    if (!shift && (scopeId || req.user.shift)) {
       let scopeName = '';
       if (scopeType === 'BRANCH' && scopeId) {
         const branch = await executeQuery('SELECT name FROM branches WHERE id = ?', [scopeId]);
@@ -347,11 +347,12 @@ const startShift = async (req, res, next) => {
         scopeName = warehouse[0]?.name || '';
       }
 
+      const shiftLabel = req.user.shift || 'GENERAL';
       const shiftName = scopeName
-        ? `${req.user.shift} Shift - ${scopeName}`
-        : `${req.user.shift} Shift`;
-      const startTime = req.user.shift === 'MORNING' ? '08:00:00' : req.user.shift === 'AFTERNOON' ? '12:00:00' : '20:00:00';
-      const endTime = req.user.shift === 'MORNING' ? '16:00:00' : req.user.shift === 'AFTERNOON' ? '20:00:00' : '08:00:00';
+        ? `${shiftLabel} Shift - ${scopeName}`
+        : `${shiftLabel} Shift`;
+      const startTime = shiftLabel === 'MORNING' ? '08:00:00' : shiftLabel === 'AFTERNOON' ? '12:00:00' : shiftLabel === 'NIGHT' ? '20:00:00' : '00:00:00';
+      const endTime = shiftLabel === 'MORNING' ? '16:00:00' : shiftLabel === 'AFTERNOON' ? '20:00:00' : shiftLabel === 'NIGHT' ? '08:00:00' : '23:59:59';
 
       const created = await executeQuery(`
         INSERT INTO shifts (name, start_time, end_time, scope_type, scope_id, user_id, is_active, created_by, created_at, updated_at)

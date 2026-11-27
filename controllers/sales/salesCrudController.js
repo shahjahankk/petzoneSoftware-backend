@@ -41,8 +41,8 @@ const getSales = async (req, res, next) => {
     const offset = (parsedPage - 1) * parsedLimit;
     let whereConditions = [
       's.deleted_at IS NULL',
-      "(s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND'))",
-      "(s.payment_method IS NULL OR s.payment_method NOT IN ('REFUND'))",
+      "(s.payment_type IS NULL OR s.payment_type NOT IN ('REFUND','CASH_REFUND','CREDIT_REFUND_SETTLEMENT'))",
+      "(s.payment_method IS NULL OR s.payment_method NOT IN ('REFUND','CASH_REFUND'))",
       "s.invoice_no NOT LIKE 'RET-%'"
     ];
     let params = [];

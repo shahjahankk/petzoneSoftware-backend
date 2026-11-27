@@ -403,68 +403,6 @@ const startShift = async (req, res, next) => {
       });
     }
 
-    const shiftScopeType = shift.scope_type || scopeType;
-    const shiftScopeId = shift.scope_id || scopeId;
-    let scopeName = null;
-    if (shiftScopeId !== null && shiftScopeId !== undefined && shiftScopeId !== '') {
-      if (shiftScopeType === 'BRANCH') {
-        const branchRows = await executeQuery('SELECT name FROM branches WHERE id = ?', [shiftScopeId]);
-        scopeName = branchRows[0]?.name || null;
-      } else if (shiftScopeType === 'WAREHOUSE') {
-        const warehouseRows = await executeQuery('SELECT name FROM warehouses WHERE id = ?', [shiftScopeId]);
-        scopeName = warehouseRows[0]?.name || null;
-      }
-    }
-
-    const previousSessions = await executeQuery(`
-      SELECT ss.id, ss.final_cash, ss.actual_end_time
-      FROM shift_sessions ss
-      JOIN shifts s ON s.id = ss.shift_id
-      WHERE ss.status = 'ENDED'
-        AND ss.final_cash IS NOT NULL
-        AND s.scope_type = ?
-        AND (s.scope_id = ? OR s.scope_id = ?)
-      ORDER BY ss.actual_end_time DESC, ss.id DESC
-      LIMIT 1
-    `, [shiftScopeType, shiftScopeId, scopeName || '']);
-
-    if (previousSessions.length > 0) {
-      const previousSession = previousSessions[0];
-      let approvedCashIn = 0;
-      let approvedCashOut = 0;
-
-      try {
-        const movementRows = await executeQuery(`
-          SELECT
-            COALESCE(SUM(CASE WHEN direction = 'IN' THEN amount ELSE 0 END), 0) AS cash_in,
-            COALESCE(SUM(CASE WHEN direction = 'OUT' THEN amount ELSE 0 END), 0) AS cash_out
-          FROM shift_cash_movements
-          WHERE status = 'APPROVED'
-            AND deleted_at IS NULL
-            AND scope_type = ?
-            AND (scope_id = ? OR scope_id = ?)
-            AND created_at > ?
-        `, [shiftScopeType, shiftScopeId, scopeName || '', previousSession.actual_end_time]);
-        approvedCashIn = roundMoney(movementRows[0]?.cash_in);
-        approvedCashOut = roundMoney(movementRows[0]?.cash_out);
-      } catch (error) {
-        if (!/ER_NO_SUCH_TABLE|doesn't exist|does not exist/i.test(error.message)) throw error;
-      }
-
-      const expectedOpening = roundMoney(Number(previousSession.final_cash) + approvedCashIn - approvedCashOut);
-      if (Math.abs(normalizedInitialCash - expectedOpening) > 0.01) {
-        return res.status(400).json({
-          success: false,
-          message: 'Opening cash must match the previous closing cash plus approved cash movements',
-          previous_session_id: previousSession.id,
-          previous_final_cash: roundMoney(previousSession.final_cash),
-          approved_cash_in: approvedCashIn,
-          approved_cash_out: approvedCashOut,
-          suggested_initial_cash: expectedOpening
-        });
-      }
-    }
-
     const sessionResult = await executeQuery(`
       INSERT INTO shift_sessions (shift_id, user_id, status, actual_start_time, initial_cash, total_sales)
       VALUES (?, ?, 'ACTIVE', NOW(), ?, 0.00)

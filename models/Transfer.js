@@ -37,9 +37,18 @@ class Transfer {
   static async create(transferData, connection = null) {
     try {
       const {
-        transferType, fromWarehouseId, toWarehouseId, fromBranchId, toBranchId, createdBy, items, notes,
+        transferType, fromScopeType, fromWarehouseId, toWarehouseId, fromBranchId, toBranchId, createdBy, items, notes,
         status = 'pending', approvedBy = null
       } = transferData;
+
+      const normalizeDbTransferType = (value, fallback) => {
+        const normalized = String(value || '').toUpperCase();
+        if (normalized.startsWith('WAREHOUSE')) return 'WAREHOUSE';
+        if (normalized.startsWith('BRANCH')) return 'BRANCH';
+        return String(fallback || '').toUpperCase() === 'WAREHOUSE' ? 'WAREHOUSE' : 'BRANCH';
+      };
+
+      const dbTransferType = normalizeDbTransferType(transferType, fromScopeType);
 
       // Generate transfer number
       const transferNumber = await this.generateTransferNumber();
@@ -55,25 +64,6 @@ class Transfer {
       try {
         // Calculate total items
         const totalItems = items ? items.length : 0;
-
-        // Validate and set transfer type
-        let dbTransferType = transferType;
-        
-        // Handle empty or invalid transfer types
-        if (!transferType || transferType === '' || transferType === 'null' || transferType === 'undefined') {
-          // Determine transfer type based on from/to locations
-          if (fromBranchId && toBranchId) {
-            dbTransferType = 'BRANCH';
-          } else if (fromWarehouseId && toWarehouseId) {
-            dbTransferType = 'WAREHOUSE';
-          } else if (fromBranchId && toWarehouseId) {
-            dbTransferType = 'BRANCH';
-          } else if (fromWarehouseId && toBranchId) {
-            dbTransferType = 'WAREHOUSE';
-          } else {
-            dbTransferType = 'BRANCH'; // Default fallback
-          }
-        }
 
 
         // Insert transfer using ACTUAL database schema

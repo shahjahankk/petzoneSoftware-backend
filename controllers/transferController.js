@@ -78,7 +78,7 @@ const createTransfer = async (req, res) => {
     }
 
     const transferData = {
-      transferType, fromWarehouseId, toWarehouseId, fromBranchId, toBranchId,
+      transferType, fromScopeType, fromWarehouseId, toWarehouseId, fromBranchId, toBranchId,
       createdBy: req.user.id,
       items: items.map(item => ({ inventoryItemId: item.inventoryItemId, quantity: item.quantityRequested })),
       notes,
@@ -157,15 +157,29 @@ const completeTransfer = async (req, res) => {
     const connection = await pool.getConnection();
     await connection.beginTransaction();
     try {
-      for (const item of transfer.items) {
-        let destinationScopeType, destinationScopeId;
-        if (transfer.transfer_type === 'WAREHOUSE_TO_WAREHOUSE') { destinationScopeType = 'WAREHOUSE'; destinationScopeId = transfer.to_warehouse_id; }
-        else if (transfer.transfer_type === 'BRANCH_TO_BRANCH') { destinationScopeType = 'BRANCH'; destinationScopeId = transfer.to_branch_id; }
-        else throw new Error('Unsupported transfer type for completion');
+      const storedType = String(transfer.transfer_type || '').toUpperCase();
+      const fallbackScopeType = storedType.startsWith('WAREHOUSE') ? 'WAREHOUSE' : 'BRANCH';
+      const sourceScopeType = transfer.from_branch_id ? 'BRANCH' : transfer.from_warehouse_id ? 'WAREHOUSE' : fallbackScopeType;
+      const sourceScopeId = sourceScopeType === 'BRANCH' ? transfer.from_branch_id : transfer.from_warehouse_id;
+      const destinationScopeType = transfer.to_branch_id ? 'BRANCH' : transfer.to_warehouse_id ? 'WAREHOUSE' : fallbackScopeType;
+      const destinationScopeId = destinationScopeType === 'BRANCH' ? transfer.to_branch_id : transfer.to_warehouse_id;
+      if (!sourceScopeId || !destinationScopeId) {
+        throw new Error('Unsupported transfer type for completion');
+      }
 
+      for (const item of transfer.items) {
         const [existingItem] = await connection.execute(
-          'SELECT id FROM inventory_items WHERE sku = (SELECT sku FROM inventory_items WHERE id = ?) AND scope_type = ? AND scope_id = ?',
-          [item.inventory_item_id, destinationScopeType, destinationScopeId]
+          `SELECT id FROM inventory_items
+           WHERE scope_type = ? AND scope_id = ? AND deleted_at IS NULL
+             AND (
+               (barcode IS NOT NULL AND barcode <> '' AND barcode = (SELECT barcode FROM inventory_items WHERE id = ?))
+               OR (LOWER(TRIM(name)) = LOWER(TRIM((SELECT name FROM inventory_items WHERE id = ?)))
+                   AND LOWER(TRIM(COALESCE(category, ''))) = LOWER(TRIM(COALESCE((SELECT category FROM inventory_items WHERE id = ?), '')))
+                   AND LOWER(TRIM(COALESCE(unit, ''))) = LOWER(TRIM(COALESCE((SELECT unit FROM inventory_items WHERE id = ?), ''))))
+             )
+           ORDER BY CASE WHEN barcode IS NOT NULL AND barcode <> '' THEN 0 ELSE 1 END, id
+           LIMIT 1`,
+          [destinationScopeType, destinationScopeId, item.inventory_item_id, item.inventory_item_id, item.inventory_item_id, item.inventory_item_id]
         );
 
         let destInventoryItemId;
@@ -175,9 +189,9 @@ const completeTransfer = async (req, res) => {
           const [sourceItem] = await connection.execute('SELECT * FROM inventory_items WHERE id = ?', [item.inventory_item_id]);
           if (!sourceItem.length) continue;
           const [insRow] = await connection.execute(`
-              INSERT INTO inventory_items (sku, name, description, category, unit, cost_price, selling_price, min_stock_level, max_stock_level, current_stock, scope_type, scope_id, created_by)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)
-            `, [sourceItem[0].sku, sourceItem[0].name, sourceItem[0].description, sourceItem[0].category, sourceItem[0].unit, sourceItem[0].cost_price, sourceItem[0].selling_price, sourceItem[0].min_stock_level, sourceItem[0].max_stock_level, destinationScopeType, destinationScopeId, req.user.id]);
+              INSERT INTO inventory_items (sku, barcode, name, description, category, unit, cost_price, selling_price, min_stock_level, max_stock_level, current_stock, scope_type, scope_id, created_by)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)
+            `, [sourceItem[0].sku, sourceItem[0].barcode, sourceItem[0].name, sourceItem[0].description, sourceItem[0].category, sourceItem[0].unit, sourceItem[0].cost_price, sourceItem[0].selling_price, sourceItem[0].min_stock_level, sourceItem[0].max_stock_level, destinationScopeType, destinationScopeId, req.user.id]);
           destInventoryItemId = insRow.insertId;
         }
 
@@ -196,12 +210,12 @@ const completeTransfer = async (req, res) => {
         try {
           await connection.execute(`
           INSERT INTO stock_movements (inventory_item_id, movement_type, quantity, reference_type, reference_id, from_scope_type, from_scope_id, to_scope_type, to_scope_id, notes, created_by)
-          VALUES (?, 'TRANSFER_OUT', ?, 'TRANSFER', ?, 'WAREHOUSE', ?, ?, ?, ?, ?, ?)
-        `, [item.inventory_item_id, -item.quantity, transfer.id, transfer.from_warehouse_id, destinationScopeType, destinationScopeId, `Transfer to ${destinationScopeType === 'WAREHOUSE' ? 'Warehouse' : 'Branch'} - ${notes || 'Transfer completed'}`, req.user.id]);
+            VALUES (?, 'TRANSFER_OUT', ?, 'TRANSFER', ?, ?, ?, ?, ?, ?, ?, ?)
+          `, [item.inventory_item_id, -item.quantity, transfer.id, sourceScopeType, sourceScopeId, destinationScopeType, destinationScopeId, `Transfer to ${destinationScopeType === 'WAREHOUSE' ? 'Warehouse' : 'Branch'} - ${notes || 'Transfer completed'}`, req.user.id]);
           await connection.execute(`
             INSERT INTO stock_movements (inventory_item_id, movement_type, quantity, reference_type, reference_id, from_scope_type, from_scope_id, to_scope_type, to_scope_id, notes, created_by)
-            VALUES (?, 'TRANSFER_IN', ?, 'TRANSFER', ?, 'WAREHOUSE', ?, ?, ?, ?, ?, ?)
-          `, [destInventoryItemId, item.quantity, transfer.id, transfer.from_warehouse_id, destinationScopeType, destinationScopeId, `Transfer from Warehouse - ${notes || 'Transfer completed'}`, req.user.id]);
+            VALUES (?, 'TRANSFER_IN', ?, 'TRANSFER', ?, ?, ?, ?, ?, ?, ?, ?)
+          `, [destInventoryItemId, item.quantity, transfer.id, sourceScopeType, sourceScopeId, destinationScopeType, destinationScopeId, `Transfer from ${sourceScopeType === 'WAREHOUSE' ? 'Warehouse' : 'Branch'} - ${notes || 'Transfer completed'}`, req.user.id]);
         } catch (movementErr) {
         }
       }

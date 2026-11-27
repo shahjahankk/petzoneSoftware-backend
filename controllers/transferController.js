@@ -24,6 +24,7 @@ const createTransfer = async (req, res) => {
     }
 
     const { transferType, fromScopeType, fromScopeId, toScopeType, toScopeId, items, notes } = req.body;
+    const isAdminTransfer = req.user.role === 'ADMIN';
 
     let fromWarehouseId = null, toWarehouseId = null, fromBranchId = null, toBranchId = null;
     if (fromScopeType === 'WAREHOUSE') fromWarehouseId = fromScopeId;
@@ -80,13 +81,22 @@ const createTransfer = async (req, res) => {
       transferType, fromWarehouseId, toWarehouseId, fromBranchId, toBranchId,
       createdBy: req.user.id,
       items: items.map(item => ({ inventoryItemId: item.inventoryItemId, quantity: item.quantityRequested })),
-      notes
+      notes,
+      status: isAdminTransfer ? 'approved' : 'pending',
+      approvedBy: isAdminTransfer ? req.user.id : null
     };
 
     const connection = await pool.getConnection();
     await connection.beginTransaction();
     try {
       const transfer = await Transfer.create(transferData, connection);
+
+      if (isAdminTransfer) {
+        await connection.execute(`
+          INSERT INTO transfer_logs (transfer_id, action, performed_by, old_status, new_status, notes)
+          VALUES (?, 'APPROVED', ?, 'pending', 'approved', ?)
+        `, [transfer.id, req.user.id, 'Auto-approved by admin on create']);
+      }
 
       for (const item of items) {
         let scopeType, scopeId;
@@ -117,7 +127,7 @@ const createTransfer = async (req, res) => {
 
       await connection.commit();
 
-      res.status(201).json({ success: true, message: 'Transfer created successfully and inventory updated', data: transfer });
+      res.status(201).json({ success: true, message: isAdminTransfer ? 'Transfer created and approved successfully and inventory updated' : 'Transfer created successfully and inventory updated', data: transfer });
     } catch (error) {
       await connection.rollback();
       throw error;

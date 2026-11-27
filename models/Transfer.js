@@ -37,7 +37,8 @@ class Transfer {
   static async create(transferData, connection = null) {
     try {
       const {
-        transferType, fromWarehouseId, toWarehouseId, fromBranchId, toBranchId, createdBy, items, notes
+        transferType, fromWarehouseId, toWarehouseId, fromBranchId, toBranchId, createdBy, items, notes,
+        status = 'pending', approvedBy = null
       } = transferData;
 
       // Generate transfer number
@@ -79,11 +80,11 @@ class Transfer {
         const [result] = await dbConnection.execute(`
           INSERT INTO transfers (
             transfer_number, transfer_type, from_warehouse_id, to_warehouse_id, 
-            from_branch_id, to_branch_id, created_by, status, notes
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)
+            from_branch_id, to_branch_id, created_by, status, approved_by, notes
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `, [
           transferNumber, dbTransferType, fromWarehouseId, toWarehouseId, 
-          fromBranchId, toBranchId, createdBy, notes
+          fromBranchId, toBranchId, createdBy, status, approvedBy, notes
         ]);
 
         

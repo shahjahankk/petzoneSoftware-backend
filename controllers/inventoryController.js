@@ -214,6 +214,9 @@ const getInventoryItems = async (req, res, next) => {
         totalSold: 0,
         totalReturned: 0,
         totalRestocked: 0,
+        totalTransferIn: 0,
+        totalTransferOut: 0,
+        netTransfer: 0,
         pendingReturns: rawPending,
         totalAdjusted: 0,
         supplierId: item.supplier_id,
@@ -290,6 +293,9 @@ const getInventoryItems = async (req, res, next) => {
               totalSold: grossSold,
               netSold: Math.max(0, grossSold - returnedQty),
               totalReturned: returnedQty,
+              totalTransferIn: 0,
+              totalTransferOut: 0,
+              netTransfer: 0,
               openingBalance: 0,
               totalPurchaseIn: parseFloat(F.purchased) || 0,
               ledgerMathOk: true,
@@ -307,6 +313,8 @@ const getInventoryItems = async (req, res, next) => {
           const grossSold = parseFloat(F.sold) || 0;
           const returnedQty = parseFloat(F.returned) || 0;
           const restockedQty = parseFloat(L.restocked) || 0;
+          const transferInQty = parseFloat(L.transfer_in) || 0;
+          const transferOutQty = parseFloat(L.transfer_out) || 0;
           const ledgerQty = parseFloat(L.current_stock) || 0;
           const netSold = Math.max(0, grossSold - returnedQty);
           /** Opening + completed PO receipts — what users usually mean by “total purchase” */
@@ -317,8 +325,8 @@ const getInventoryItems = async (req, res, next) => {
             poPurchased -
             grossSold +
             returnedQty +
-            (parseFloat(L.transfer_in) || 0) -
-            (parseFloat(L.transfer_out) || 0) +
+            transferInQty -
+            transferOutQty +
             (parseFloat(L.adjustments) || 0);
           const ledgerMathDelta = ledgerQty - computedNet;
           const ledgerMathOk = Math.abs(ledgerMathDelta) < 0.01;
@@ -336,6 +344,9 @@ const getInventoryItems = async (req, res, next) => {
             ledgerMathDelta,
             totalRestocked: L.restocked,
             totalAdjusted: L.adjustments,
+            totalTransferIn: transferInQty,
+            totalTransferOut: transferOutQty,
+            netTransfer: transferInQty - transferOutQty,
             ledgerSummary: {
               opening: L.opening,
               purchaseOrders: poPurchased,
@@ -343,8 +354,8 @@ const getInventoryItems = async (req, res, next) => {
               netSold,
               returned: L.returned,
               restocked: L.restocked,
-              transferIn: L.transfer_in,
-              transferOut: L.transfer_out,
+              transferIn: transferInQty,
+              transferOut: transferOutQty,
               adjustments: L.adjustments,
               currentStockFromLedger: L.current_stock,
               totalPurchaseIn,

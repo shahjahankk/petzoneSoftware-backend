@@ -9,7 +9,7 @@ const {
 const {
   createTransfer, getTransfers, getTransfer, updateTransferStatus,
   getLocationTransferSettings, getTransferSettings, updateTransferSettings,
-  completeTransfer, getTransferLogs, getTransferMovements, getTransferStatistics
+  completeTransfer, rejectTransfer, getTransferLogs, getTransferMovements, getTransferStatistics
 } = require('../controllers/transferController');
 // auth is already applied globally in server.js
 
@@ -26,7 +26,8 @@ router.route('/settings/:type/:id').get(rbac('ADMIN', 'CASHIER', 'WAREHOUSE_KEEP
 
 router.route('/:id').get(rbac('ADMIN', 'CASHIER', 'WAREHOUSE_KEEPER'), getTransfer);
 router.route('/:id/status').put(rbac('ADMIN', 'CASHIER', 'WAREHOUSE_KEEPER'), transferStatusValidation, handleValidation, updateTransferStatus);
-router.route('/:id/complete').put(rbac('ADMIN', 'WAREHOUSE_KEEPER'), completeTransfer);
+router.route('/:id/complete').put(rbac('ADMIN', 'CASHIER', 'WAREHOUSE_KEEPER'), completeTransfer);
+router.route('/:id/reject').post(rbac('ADMIN', 'CASHIER', 'WAREHOUSE_KEEPER'), rejectTransfer);
 router.route('/:id/movements').get(rbac('ADMIN', 'WAREHOUSE_KEEPER'), getTransferMovements);
 
 module.exports = router;

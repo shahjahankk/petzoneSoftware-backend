@@ -13,6 +13,55 @@ function isApprovedTransferStatus(status) {
   return String(status || '').trim().toLowerCase() === 'approved';
 }
 
+function canReceiveTransfer(user, transfer) {
+  if (!user) return false;
+  if (user.role === 'ADMIN') return true;
+  if (user.role === 'CASHIER' && Number(user.branchId) === Number(transfer.to_branch_id)) return true;
+  return user.role === 'WAREHOUSE_KEEPER' && Number(user.warehouseId) === Number(transfer.to_warehouse_id);
+}
+
+function resolveTransferScopes(transfer) {
+  const storedType = String(transfer.transfer_type || '').toUpperCase();
+  const fallbackScopeType = storedType.startsWith('WAREHOUSE') ? 'WAREHOUSE' : 'BRANCH';
+  const sourceScopeType = transfer.from_branch_id ? 'BRANCH' : transfer.from_warehouse_id ? 'WAREHOUSE' : fallbackScopeType;
+  const sourceScopeId = sourceScopeType === 'BRANCH' ? transfer.from_branch_id : transfer.from_warehouse_id;
+  const destinationScopeType = transfer.to_branch_id ? 'BRANCH' : transfer.to_warehouse_id ? 'WAREHOUSE' : fallbackScopeType;
+  const destinationScopeId = destinationScopeType === 'BRANCH' ? transfer.to_branch_id : transfer.to_warehouse_id;
+  if (!sourceScopeId || !destinationScopeId) throw new Error('Unsupported transfer type for completion');
+  return { sourceScopeType, sourceScopeId, destinationScopeType, destinationScopeId };
+}
+
+async function restoreTransferStock(connection, transfer, userId, notes) {
+  const { sourceScopeType, sourceScopeId, destinationScopeType, destinationScopeId } = resolveTransferScopes(transfer);
+  for (const item of transfer.items) {
+    const referenceId = `${transfer.id}:reverse:${item.inventory_item_id}`;
+    const [existingReversal] = await connection.execute(
+      `SELECT id FROM inventory_ledger_entries
+       WHERE reference_type = 'transfer_reversal' AND reference_id = ?`,
+      [referenceId]
+    );
+    if (existingReversal.length) continue;
+    await InventoryProjection.applyEvent(connection, {
+      event_type: 'ADJUSTMENT',
+      inventory_item_id: item.inventory_item_id,
+      scope_type: sourceScopeType,
+      scope_id: String(sourceScopeId != null ? sourceScopeId : ''),
+      quantity_in: Number(item.quantity),
+      quantity_out: 0,
+      reference_type: 'transfer_reversal',
+      reference_id: referenceId,
+      created_by: userId,
+      notes: notes || `Rejected transfer ${transfer.transfer_number}`
+    });
+    await connection.execute(
+      `INSERT INTO stock_movements
+         (inventory_item_id, movement_type, quantity, reference_type, reference_id, from_scope_type, from_scope_id, to_scope_type, to_scope_id, notes, created_by)
+       VALUES (?, 'ADJUSTMENT', ?, 'ADJUSTMENT', ?, ?, ?, ?, ?, ?, ?)`,
+      [item.inventory_item_id, item.quantity, transfer.id, destinationScopeType, destinationScopeId, sourceScopeType, sourceScopeId, `Rejected transfer ${transfer.transfer_number} - stock returned to sender`, userId]
+    );
+  }
+}
+
 // @desc    Create new transfer
 // @route   POST /api/transfers
 // @access  Private (Admin, Cashier, Warehouse Keeper with permissions)
@@ -153,19 +202,14 @@ const completeTransfer = async (req, res) => {
     if (!isApprovedTransferStatus(transfer.status)) {
       return res.status(400).json({ success: false, message: 'Transfer must be approved before completion' });
     }
+    if (!canReceiveTransfer(req.user, transfer)) {
+      return res.status(403).json({ success: false, message: 'Only the receiving location can complete this transfer' });
+    }
 
     const connection = await pool.getConnection();
     await connection.beginTransaction();
     try {
-      const storedType = String(transfer.transfer_type || '').toUpperCase();
-      const fallbackScopeType = storedType.startsWith('WAREHOUSE') ? 'WAREHOUSE' : 'BRANCH';
-      const sourceScopeType = transfer.from_branch_id ? 'BRANCH' : transfer.from_warehouse_id ? 'WAREHOUSE' : fallbackScopeType;
-      const sourceScopeId = sourceScopeType === 'BRANCH' ? transfer.from_branch_id : transfer.from_warehouse_id;
-      const destinationScopeType = transfer.to_branch_id ? 'BRANCH' : transfer.to_warehouse_id ? 'WAREHOUSE' : fallbackScopeType;
-      const destinationScopeId = destinationScopeType === 'BRANCH' ? transfer.to_branch_id : transfer.to_warehouse_id;
-      if (!sourceScopeId || !destinationScopeId) {
-        throw new Error('Unsupported transfer type for completion');
-      }
+      const { sourceScopeType, sourceScopeId, destinationScopeType, destinationScopeId } = resolveTransferScopes(transfer);
 
       for (const item of transfer.items) {
         const [existingItem] = await connection.execute(
@@ -237,6 +281,49 @@ const completeTransfer = async (req, res) => {
 
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error completing transfer', error: error.message });
+  }
+};
+
+const rejectTransfer = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { notes } = req.body;
+
+    const transfer = await Transfer.findById(id);
+    if (!transfer) return res.status(404).json({ success: false, message: 'Transfer not found' });
+    if (!isApprovedTransferStatus(transfer.status)) {
+      return res.status(400).json({ success: false, message: 'Only approved transfers can be rejected' });
+    }
+    if (!canReceiveTransfer(req.user, transfer)) {
+      return res.status(403).json({ success: false, message: 'Only the receiving location can reject this transfer' });
+    }
+
+    const connection = await pool.getConnection();
+    await connection.beginTransaction();
+    try {
+      await restoreTransferStock(connection, transfer, req.user.id, notes);
+
+      await connection.execute(
+        'UPDATE transfers SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+        ['cancelled', id]
+      );
+      await connection.execute(
+        `INSERT INTO transfer_logs (transfer_id, action, old_status, new_status, notes, performed_by)
+         VALUES (?, 'REJECTED', ?, 'cancelled', ?, ?)`,
+        [transfer.id, transfer.status, notes || 'Rejected by receiving location - stock returned to sender', req.user.id]
+      );
+      await connection.commit();
+
+      const updatedTransfer = await Transfer.findById(id);
+      res.json({ success: true, message: 'Transfer rejected and stock returned to sender', data: updatedTransfer });
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error rejecting transfer', error: error.message });
   }
 };
 
@@ -396,7 +483,34 @@ const updateTransferStatus = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Only admins can approve or reject transfers' });
     }
 
-    const updatedTransfer = await Transfer.updateStatus(id, dbStatus, req.user.id, notes);
+    if (dbStatus === 'cancelled' && transfer.status !== 'cancelled') {
+      const connection = await pool.getConnection();
+      await connection.beginTransaction();
+      try {
+        await restoreTransferStock(connection, transfer, req.user.id, notes);
+        await connection.execute(
+          'UPDATE transfers SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+          [dbStatus, id]
+        );
+        await connection.execute(
+          `INSERT INTO transfer_logs (transfer_id, action, old_status, new_status, notes, performed_by)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [transfer.id, status === 'CANCELLED' ? 'CANCELLED' : 'REJECTED', transfer.status, dbStatus, notes || 'Stock returned to sender', req.user.id]
+        );
+        await connection.commit();
+      } catch (error) {
+        await connection.rollback();
+        throw error;
+      } finally {
+        connection.release();
+      }
+    } else {
+      const updatedTransfer = await Transfer.updateStatus(id, dbStatus, req.user.id, notes);
+      res.json({ success: true, message: `Transfer ${status.toLowerCase()} successfully`, data: updatedTransfer });
+      return;
+    }
+
+    const updatedTransfer = await Transfer.findById(id);
     res.json({ success: true, message: `Transfer ${status.toLowerCase()} successfully`, data: updatedTransfer });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error updating transfer status', error: error.message });
@@ -505,5 +619,5 @@ const updateTransferSettings = async (req, res) => {
 module.exports = {
   createTransfer, getTransfers, getTransfer, updateTransferStatus,
   getLocationTransferSettings, getTransferSettings, updateTransferSettings,
-  completeTransfer, getTransferLogs, getTransferMovements, getTransferStatistics
+  completeTransfer, rejectTransfer, getTransferLogs, getTransferMovements, getTransferStatistics
 };
